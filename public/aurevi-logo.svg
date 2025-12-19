@@ -1,0 +1,28 @@
+<!-- public/aurevi-logo.svg -->
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Fondo circular con degradado AUREVI -->
+    <radialGradient id="bg" cx="30%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="45%" stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </radialGradient>
+    <!-- Degradado para la letra -->
+    <linearGradient id="letter" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f9fafb"/>
+      <stop offset="100%" stop-color="#d1fae5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Círculo de fondo -->
+  <circle cx="32" cy="32" r="30" fill="url(#bg)" />
+
+  <!-- Letra A estilizada -->
+  <path
+    d="M24 44L31 20c0.5-1.6 1.6-2.5 3-2.5s2.5 0.9 3 2.5l7 24h-4.6l-2-7H30.6l-2 7H24zm8.3-11h5.4l-2.7-9.3L32.3 33z"
+    fill="url(#letter)"
+  />
+
+  <!-- Chispa arriba (idea / creatividad) -->
+  <circle cx="44" cy="16" r="2.2" fill="#fef9c3" />
+</svg>

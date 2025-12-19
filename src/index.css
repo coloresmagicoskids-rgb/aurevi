@@ -1,0 +1,1859 @@
+/* ============================================================
+   VARIABLES GLOBALES + CONFIGURACIÓN BASE
+   ============================================================ */
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.92);
+  background-color: #000;
+
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Enlaces básicos */
+a {
+  font-weight: 500;
+  color: #7b8cff;
+  text-decoration: none;
+}
+a:hover {
+  color: #a5b4ff;
+}
+
+/* ============================================================
+   CONFIGURACIÓN GENERAL DEL BODY
+   ============================================================ */
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Botones básicos */
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s, background-color 0.2s, transform 0.08s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:active {
+  transform: translateY(1px);
+}
+button:focus-visible {
+  outline: 3px auto #646cff;
+}
+
+/* Light mode */
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #222;
+    background-color: #fff;
+  }
+  body {
+    background-color: #f3f4f6;
+  }
+  button {
+    background-color: #f5f5f5;
+  }
+}
+
+/* ============================================================
+   LAYOUT GENERAL AUREVI
+   ============================================================ */
+
+.aurevi-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at top left, #020617, #020617 40%, #020617);
+  color: #f9fafb;
+}
+
+.aurevi-main {
+  flex: 1;
+  max-width: 1040px;
+  width: 100%;
+  margin: 0 auto;
+  /* subimos todo un poco: menos espacio arriba */
+  padding: 70px 16px 88px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .aurevi-main {
+    padding: 64px 12px 88px;
+  }
+}
+
+@media (max-width: 768px) {
+  .aurevi-main {
+    padding: 76px 12px 96px;
+  }
+}
+
+/* ============================================================
+   LAYOUT DE PANTALLAS (Inicio, Explorar, Crear, Perfil)
+   ============================================================ */
+
+.aurevi-screen {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+}
+
+@media (min-width: 768px) {
+  .aurevi-screen {
+    padding: 18px 24px 40px;
+  }
+}
+
+/* Título y descripción de la pantalla Inicio */
+.aurevi-screen-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0 0 4px;
+}
+
+.aurevi-screen-description {
+  font-size: 0.95rem;
+  color: #9ca3af;
+  max-width: 520px;
+  margin: 0 0 16px;
+}
+
+.aurevi-screen-title {
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0 0 4px;
+}
+
+.aurevi-screen-description {
+  font-size: 0.95rem;
+  color: #9ca3af;
+  max-width: 520px;
+  margin: 0 0 20px;
+}
+
+/* ============================================================
+   FEED, TARJETAS Y VIDEO
+   ============================================================ */
+
+.aurevi-feed-list {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 24px;
+}
+
+.aurevi-feed-card {
+  width: 100%;
+  max-width: 640px;         /* un poco más estrecha = más humana */
+  margin: 8px auto 24px;    /* se separa del título y respira abajo */
+  border-radius: 22px;
+  background: radial-gradient(circle at top,
+    #020617,
+    #020617 60%);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.75);
+  padding: 18px 18px 16px;
+  box-sizing: border-box;
+}
+
+.aurevi-video-player {
+  width: 100%;
+  border-radius: 20px;
+  margin-bottom: 12px;
+  background: #020617;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.9);
+}
+
+.aurevi-feed-title {
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+}
+
+.aurevi-feed-description {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: #d1d5db;
+}
+
+/* Botón "Me gusta" / "Eliminar" visualmente más pulido */
+.aurevi-like-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  background: linear-gradient(90deg, #f97373, #fb923c, #facc15);
+  color: #111827;
+  font-weight: 600;
+}
+
+.aurevi-delete-btn {
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.84rem;
+  background: #ef4444;
+  color: #f9fafb;
+  border: none;
+}
+
+/* ============================================================
+   PANTALLA CREAR – FORMULARIO
+   ============================================================ */
+
+.aurevi-form-card {
+  margin: 24px auto 0;
+  max-width: 780px;
+  border-radius: 24px;
+  padding: 24px 18px 28px;
+  background:
+    radial-gradient(circle at top left,
+      rgba(96, 165, 250, 0.25),
+      transparent 55%),
+    radial-gradient(circle at bottom right,
+      rgba(244, 114, 182, 0.25),
+      rgba(15, 23, 42, 0.98) 65%);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .aurevi-form-card {
+    padding: 28px 32px 32px;
+  }
+}
+
+.aurevi-form-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.aurevi-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.aurevi-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: #e5e7eb;
+}
+
+.aurevi-input {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.9);
+  color: #f9fafb;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.aurevi-input::placeholder {
+  color: #6b7280;
+}
+
+.aurevi-input:focus {
+  border-color: #a855f7;
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.7);
+  background: rgba(15, 23, 42, 0.98);
+}
+
+.aurevi-textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.9);
+  color: #f9fafb;
+  font-size: 0.9rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.aurevi-textarea::placeholder {
+  color: #6b7280;
+}
+
+.aurevi-textarea:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.7);
+  background: rgba(15, 23, 42, 0.98);
+}
+
+/* Botón primario genérico para la app */
+.aurevi-primary-btn {
+  width: 100%;
+  margin-top: 12px;
+  border-radius: 999px;
+  border: none;
+  padding: 11px 18px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(120deg, #4f46e5, #ec4899);
+  color: #f9fafb;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.9);
+  transition: transform 0.08s ease, box-shadow 0.12s ease,
+    filter 0.1s ease;
+}
+
+.aurevi-primary-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.aurevi-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Botón secundario (Volver a grabar) */
+
+.aurevi-camera-btn-secondary {
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.aurevi-camera-btn-secondary:hover {
+  background: rgba(15, 23, 42, 1);
+  border-color: rgba(209, 213, 219, 0.8);
+}
+
+/* ============================================================
+   BOTTOM BAR MODERNA
+   ============================================================ */
+
+.aurevi-bottom-bar-wrapper {
+  position: fixed;
+  bottom: 14px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.aurevi-bottom-bar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f9fafb;
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  max-width: 520px;
+  width: calc(100% - 32px);
+}
+
+.aurevi-bottom-tab {
+  flex: 1;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  color: #4b5563;
+  cursor: pointer;
+  transition: background-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.aurevi-bottom-tab-icon {
+  font-size: 1rem;
+}
+
+.aurevi-bottom-tab--active {
+  background: linear-gradient(120deg, #6366f1, #ec4899);
+  color: #f9fafb;
+  box-shadow: 0 10px 22px rgba(79, 70, 229, 0.55);
+}
+
+@media (max-width: 640px) {
+  .aurevi-bottom-bar-wrapper {
+    bottom: 8px;
+  }
+}
+
+/* ============================================================
+   CÁMARA / GRABADORA AUREVI
+   ============================================================ */
+
+.aurevi-camera-shell {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px 14px;
+  border-radius: 24px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+
+.aurevi-camera-preview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 20px;
+  background: #020617;
+  object-fit: cover;
+}
+
+.aurevi-camera-footer {
+  margin-top: 10px;
+}
+
+.aurevi-camera-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.aurevi-camera-btn-record {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #ef4444;
+  color: #fff;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+}
+
+.aurevi-camera-btn-record.is-recording {
+  background: #b91c1c;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.4);
+}
+
+.aurevi-camera-btn-record:hover {
+  transform: translateY(-1px);
+}
+
+.aurevi-camera-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.aurevi-camera-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: #e5e7eb;
+}
+
+/* ============================================================
+   ESTILOS LOGIN / PERFIL
+   ============================================================ */
+
+.profile-screen {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: radial-gradient(circle at top left, #020617, #020617 40%, #020617);
+}
+
+.profile-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  display: flex;
+  gap: 3rem;
+  align-items: center;
+}
+
+@media (max-width: 800px) {
+  .profile-shell {
+    flex-direction: column;
+    padding: 2.5rem 1.25rem;
+    text-align: center;
+  }
+}
+
+.profile-side-copy {
+  color: #e5e7eb;
+}
+
+.profile-kicker {
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-bottom: 8px;
+}
+
+.profile-hero-title {
+  font-size: 1.9rem;
+  line-height: 1.2;
+  margin: 0 0 12px;
+  background: linear-gradient(120deg, #f97316, #ec4899, #6366f1);
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.profile-hero-subtitle {
+  font-size: 0.95rem;
+  color: #9ca3af;
+  max-width: 34rem;
+}
+
+/* Tarjeta de perfil (lado derecho) */
+
+.profile-card {
+  background: #020617;
+  border-radius: 24px;
+  padding: 24px 24px 28px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.7);
+  max-width: 420px;
+  width: 100%;
+  border: 1px solid rgba(30, 64, 175, 0.6);
+  color: #e5e7eb;
+}
+
+.profile-card-header {
+  margin-bottom: 18px;
+}
+
+.profile-card-title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.profile-card-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+  color: #9ca3af;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #e5e7eb;
+}
+
+.profile-input {
+  border-radius: 6px;
+  border: 1px solid #4b5563;
+  background: #020617;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  color: #f9fafb;
+}
+
+.profile-input::placeholder {
+  color: #6b7280;
+}
+
+.profile-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.5);
+}
+
+/* Fila nombre / apellidos */
+.profile-name-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* Fecha de nacimiento */
+
+.profile-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.profile-label-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.profile-label-title {
+  font-weight: 500;
+}
+
+.profile-date-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+/* Género */
+.profile-gender-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.profile-gender-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 6px;
+  border: 1px solid #4b5563;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+.profile-gender-option input {
+  margin-left: 6px;
+  accent-color: #2563eb;
+}
+
+/* Mensajes de estado */
+.profile-status {
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+
+.profile-status-ok {
+  color: #16a34a;
+}
+
+.profile-status-error {
+  color: #ef4444;
+}
+
+/* Botones en tarjeta */
+
+.profile-main-button {
+  margin-top: 14px;
+  width: 100%;
+  padding: 9px 0;
+  border-radius: 999px;
+  font-size: 0.95rem;
+}
+
+.profile-register-btn {
+  margin-top: 10px;
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.profile-register-btn:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.profile-logout-btn {
+  margin-top: 10px;
+  background: #374151;
+  color: #f9fafb;
+}
+
+/* Mini enlaces tipo link */
+.profile-link-like {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.8rem;
+}
+
+.profile-link-like:hover {
+  text-decoration: underline;
+}
+
+/* Info de usuario logueado */
+
+.profile-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 14px;
+}
+
+.profile-avatar-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(130deg, #f97316, #ec4899, #6366f1);
+  color: #fff;
+  font-weight: 600;
+  font-size: 1rem;
+  overflow: hidden;
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-user-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #9ca3af;
+}
+
+.profile-user-email {
+  font-size: 0.9rem;
+  color: #e5e7eb;
+}
+
+/* Nota */
+.profile-small-print {
+  margin-top: 12px;
+  font-size: 0.7rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+/* Skeleton de carga */
+.profile-card.skeleton {
+  overflow: hidden;
+}
+
+.skeleton-line {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e5e7eb, #f3f4f6, #e5e7eb);
+  background-size: 200% 100%;
+  animation: aurevi-skeleton 1.3s infinite;
+  margin-bottom: 6px;
+}
+
+.skeleton-line.wide {
+  width: 70%;
+}
+
+.skeleton-pill {
+  width: 120px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e5e7eb, #f3f4f6, #e5e7eb);
+  background-size: 200% 100%;
+  animation: aurevi-skeleton 1.3s infinite;
+}
+
+@keyframes aurevi-skeleton {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ============================================================
+   CABECERA DE PÁGINA (Inicio / Explorar / Crear / Perfil)
+   ============================================================ */
+
+.aurevi-page-header {
+  margin-bottom: 18px;
+}
+
+.aurevi-page-kicker {
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.aurevi-page-title {
+  font-size: 1.7rem;
+  margin: 0 0 6px;
+}
+
+.aurevi-page-subtitle {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #9ca3af;
+}
+
+/* ============================================================
+   TARJETA SECCIÓN (para Explorar, Crear, etc.)
+   ============================================================ */
+
+.aurevi-section-card {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto 24px;
+  border-radius: 20px;
+  background: radial-gradient(circle at top, #020617, #020617);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55);
+  padding: 18px 18px 16px;
+  box-sizing: border-box;
+}
+
+.aurevi-section-title {
+  font-size: 1.2rem;
+  margin: 0 0 4px;
+}
+
+.aurevi-section-subtitle {
+  margin: 0 0 12px;
+  font-size: 0.86rem;
+  color: #9ca3af;
+}
+
+/* ============================================================
+   MODALES
+   ============================================================ */
+
+.aurevi-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.aurevi-modal-card {
+  background: #020617;
+  border-radius: 18px;
+  padding: 16px 16px 20px;
+  max-width: 520px;
+  width: calc(100% - 32px);
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9);
+}
+
+/* ============================================================
+   AUREVI – Ajustes de layout para INICIO (HomeFeed)
+   ============================================================ */
+
+/* Un poco menos de espacio arriba para que todo suba */
+.aurevi-main {
+  padding-top: 72px;
+  padding-bottom: 96px;
+}
+
+/* Pantalla Inicio con padding más compacto */
+.aurevi-home-screen {
+  padding-top: 16px;
+  padding-bottom: 48px;
+}
+
+/* Grid: columna central (videos) + columna lateral (clima creativo) */
+.aurevi-home-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+  gap: 32px;
+  align-items: flex-start;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Columna principal bien centrada */
+.aurevi-home-main {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Lado derecho */
+.aurevi-home-aside {
+  max-width: 320px;
+  width: 100%;
+}
+
+/* En pantallas pequeñas, se apila todo en una sola columna */
+@media (max-width: 900px) {
+  .aurevi-home-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aurevi-home-aside {
+    max-width: 100%;
+    order: -1; /* primero el clima creativo en móvil */
+    margin-bottom: 16px;
+  }
+}
+
+/* Encabezado de Inicio dentro de la columna principal */
+.aurevi-home-header {
+  margin-bottom: 14px;
+}
+
+/* Separadores para los toggles */
+.aurevi-home-feed-toggle {
+  margin-bottom: 10px;
+}
+
+.aurevi-home-mood-toggle {
+  margin-bottom: 18px;
+  margin-top: 4px;
+}
+
+/* Tarjeta lateral del clima creativo */
+.aurevi-home-aside-card {
+  border-radius: 20px;
+  padding: 16px 16px 18px;
+  background:
+    radial-gradient(circle at top left,
+      rgba(96, 165, 250, 0.2),
+      transparent 55%),
+    radial-gradient(circle at bottom right,
+      rgba(244, 114, 182, 0.2),
+      rgba(15, 23, 42, 0.98) 65%);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.9);
+  font-size: 0.86rem;
+  color: #e5e7eb;
+}
+
+/* Pequeño título de la tarjeta lateral */
+.aurevi-home-aside-kicker {
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin: 0 0 8px;
+}
+
+/* Bloque de mood/tendencia */
+.aurevi-home-aside-mood {
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.aurevi-home-aside-label {
+  color: #9ca3af;
+  font-size: 0.8rem;
+}
+
+/* Bloque de misión creativa */
+.aurevi-home-aside-mission {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.aurevi-home-aside-mission-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #a5b4fc;
+  margin-bottom: 4px;
+}
+
+.aurevi-home-aside-mission-mood {
+  font-size: 0.82rem;
+  margin-bottom: 4px;
+  color: #e5e7eb;
+}
+
+.aurevi-home-aside-mission-text {
+  font-size: 0.82rem;
+  color: #e5e7eb;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   LOGO AUREVI EN EL HEADER
+   ============================================================ */
+
+.aurevi-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px;
+  pointer-events: none; /* el contenido de abajo sigue siendo clicable */
+}
+
+.aurevi-logo-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 20%, #f97316, #ec4899 50%, #4f46e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.7);
+  margin-right: 10px;
+  pointer-events: auto;
+}
+
+.aurevi-logo-img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+}
+
+.aurevi-header-text {
+  pointer-events: auto;
+  text-align: left;
+}
+
+.aurevi-title {
+  font-size: 1.4rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.aurevi-subtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+/* ============================================================
+   LOGO AUREVI EN EL HEADER
+   ============================================================ */
+
+.aurevi-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px;
+  pointer-events: none; /* el contenido de abajo sigue siendo clicable */
+}
+
+.aurevi-logo-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 20%, #f97316, #ec4899 50%, #4f46e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.7);
+  margin-right: 10px;
+  pointer-events: auto;
+}
+
+.aurevi-logo-img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+}
+
+.aurevi-header-text {
+  pointer-events: auto;
+  text-align: left;
+}
+
+.aurevi-title {
+  font-size: 1.4rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.aurevi-subtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+/* ----------------------------------------------------
+   HEADER — Diseño elegante, moderno y centrado
+---------------------------------------------------- */
+
+.aurevi-header {
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+
+  background: rgba(2, 6, 23, 0.65);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+
+  padding: 12px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.aurevi-header-inner {
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 20px;
+
+  display: flex;
+  align-items: center;
+}
+
+.aurevi-logo-set {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.aurevi-logo-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 20%, #f97316, #ec4899 55%, #4f46e5);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.45);
+  animation: fadeIn 0.6s ease forwards;
+}
+
+.aurevi-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.aurevi-header-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.aurevi-title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.aurevi-subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  opacity: 0.75;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+
+/* Animación */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ============================================================
+   REACCIONES AUREVI (debajo de cada video)
+   ============================================================ */
+
+.aurevi-reactions-row {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Pastillas de reacción */
+.aurevi-reaction-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+
+  background: rgba(15, 23, 42, 0.95);
+  color: #e5e7eb;
+
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.08s ease,
+    box-shadow 0.12s ease,
+    color 0.16s ease;
+}
+
+.aurevi-reaction-pill:hover {
+  border-color: rgba(129, 140, 248, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.9);
+}
+
+/* Estado activo (cuando el usuario ya reaccionó así) */
+.aurevi-reaction-pill--active {
+  border-color: transparent;
+  background: linear-gradient(120deg, #4f46e5, #ec4899, #f97316);
+  color: #f9fafb;
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.7);
+}
+
+/* Contador chiquito al lado del texto */
+.aurevi-reaction-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+/* Cuando la pastilla está activa, el contador se invierte un poco */
+.aurevi-reaction-pill--active .aurevi-reaction-count {
+  background: rgba(15, 23, 42, 0.95);
+  color: #fbbf24;
+}
+
+/* ============================================================
+   REACCIONES EMOCIONALES POR VIDEO (AUREVI)
+   ============================================================ */
+
+.aurevi-reactions-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aurevi-reaction-pill {
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.08s ease,
+    color 0.16s ease;
+}
+
+.aurevi-reaction-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.9);
+}
+
+/* Contador pequeñito a la derecha */
+.aurevi-reaction-count {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #cbd5f5;
+}
+
+/* ---------- Colores por reacción ---------- */
+
+/* Calma 😌 – azules suaves */
+.aurevi-reaction-pill--calma {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(15, 23, 42, 0.95);
+}
+.aurevi-reaction-pill--calma.aurevi-reaction-pill--active {
+  background: linear-gradient(120deg, #22c1c3, #0ea5e9);
+  color: #0f172a;
+  box-shadow: 0 12px 26px rgba(56, 189, 248, 0.6);
+}
+
+/* Inspirado ✨ – violeta / rosa */
+.aurevi-reaction-pill--inspirado {
+  border-color: rgba(168, 85, 247, 0.6);
+  background: rgba(24, 24, 37, 0.95);
+}
+.aurevi-reaction-pill--inspirado.aurevi-reaction-pill--active {
+  background: linear-gradient(120deg, #a855f7, #ec4899);
+  color: #f9fafb;
+  box-shadow: 0 12px 26px rgba(168, 85, 247, 0.7);
+}
+
+/* Aprendí 📚 – azul/verde conocimiento */
+.aurevi-reaction-pill--aprendi {
+  border-color: rgba(59, 130, 246, 0.7);
+  background: rgba(15, 23, 42, 0.96);
+}
+.aurevi-reaction-pill--aprendi.aurevi-reaction-pill--active {
+  background: linear-gradient(120deg, #3b82f6, #22c55e);
+  color: #f9fafb;
+  box-shadow: 0 12px 26px rgba(34, 197, 94, 0.7);
+}
+
+/* Me reí 😂 – amarillo/naranja juguetón */
+.aurevi-reaction-pill--me_rei {
+  border-color: rgba(251, 191, 36, 0.7);
+  background: rgba(24, 24, 27, 0.96);
+}
+.aurevi-reaction-pill--me_rei.aurevi-reaction-pill--active {
+  background: linear-gradient(120deg, #fbbf24, #f97316);
+  color: #111827;
+  box-shadow: 0 12px 26px rgba(248, 181, 56, 0.8);
+}
+
+/* Me ayudó 🤝 – verde apoyo */
+.aurevi-reaction-pill--me_ayudo {
+  border-color: rgba(34, 197, 94, 0.7);
+  background: rgba(15, 23, 42, 0.96);
+}
+.aurevi-reaction-pill--me_ayudo.aurevi-reaction-pill--active {
+  background: linear-gradient(120deg, #22c55e, #16a34a);
+  color: #f9fafb;
+  box-shadow: 0 12px 26px rgba(34, 197, 94, 0.75);
+}
+
+/* ============================================================
+   ESTADOS ACTIVOS — CUANDO EL USUARIO HACE CLIC
+   ============================================================ */
+
+/* Calma 😌 – Activo */
+.aurevi-reaction-pill--calma.aurevi-reaction-pill--active {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  border-color: #38bdf8;
+  color: #0f172a;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.55);
+  transform: translateY(-1px);
+}
+
+/* Inspirado ✨ – Activo */
+.aurevi-reaction-pill--inspirado.aurevi-reaction-pill--active {
+  background: linear-gradient(135deg, #c084fc, #ec4899);
+  border-color: #c084fc;
+  color: #fff;
+  box-shadow: 0 0 14px rgba(192, 132, 252, 0.55);
+  transform: translateY(-1px);
+}
+
+/* Aprendí 📚 – Activo */
+.aurevi-reaction-pill--aprendi.aurevi-reaction-pill--active {
+  background: linear-gradient(135deg, #60a5fa, #22c55e);
+  border-color: #60a5fa;
+  color: #fff;
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Me reí 😂 – Activo */
+.aurevi-reaction-pill--me_rei.aurevi-reaction-pill--active {
+  background: linear-gradient(135deg, #fde047, #fb923c);
+  border-color: #facc15;
+  color: #78350f;
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.55);
+  transform: translateY(-1px);
+}
+
+/* Me ayudó 🤝 – Activo */
+.aurevi-reaction-pill--me_ayudo.aurevi-reaction-pill--active {
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  border-color: #4ade80;
+  color: #052e16;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.55);
+  transform: translateY(-1px);
+}
+
+/* ====== CREAR VIDEO: CONTENEDOR GENERAL ====== */
+.aurevi-screen.aurevi-create-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Cabecera de la página Crear */
+.aurevi-page-header {
+  max-width: 840px;
+  margin: 0 auto 8px auto;
+  text-align: left;
+}
+
+.aurevi-page-kicker {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.7);
+  margin-bottom: 4px;
+}
+
+.aurevi-page-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.aurevi-page-subtitle {
+  font-size: 0.9rem;
+  color: rgba(209, 213, 219, 0.85);
+  margin: 0;
+}
+
+/* ====== TARJETA DEL FORMULARIO ====== */
+.aurevi-form-card {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 20px 22px;
+  border-radius: 22px;
+  background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 55%),
+              radial-gradient(circle at bottom right, rgba(244, 114, 182, 0.13), transparent 55%),
+              rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  box-shadow:
+    0 18px 40px rgba(15, 23, 42, 0.78),
+    0 0 0 1px rgba(15, 23, 42, 0.9);
+}
+
+/* Formulario en columna con buen espaciado */
+.aurevi-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Etiquetas y campos */
+.aurevi-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: rgba(229, 231, 235, 0.9);
+}
+
+.aurevi-input,
+.aurevi-textarea,
+.aurevi-form select {
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: radial-gradient(circle at top left, rgba(30, 64, 175, 0.45), rgba(15, 23, 42, 0.98));
+  color: #e5e7eb;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease,
+    transform 0.08s ease;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.9);
+}
+
+.aurevi-textarea {
+  border-radius: 18px;
+  min-height: 110px;
+  resize: vertical;
+}
+
+/* Hover / focus de campos */
+.aurevi-input:hover,
+.aurevi-textarea:hover,
+.aurevi-form select:hover {
+  border-color: rgba(248, 250, 252, 0.9);
+}
+
+.aurevi-input:focus,
+.aurevi-textarea:focus,
+.aurevi-form select:focus {
+  border-color: #a855f7;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 1),
+    0 0 0 1px #a855f7,
+    0 0 18px rgba(168, 85, 247, 0.55);
+  transform: translateY(-0.5px);
+}
+
+/* Input de archivo más limpio */
+#aurevi-upload-input.aurevi-input {
+  cursor: pointer;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.38), rgba(15, 23, 42, 0.98));
+}
+
+#aurevi-upload-input.aurevi-input::-webkit-file-upload-button {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  margin-right: 10px;
+  background: linear-gradient(90deg, #38bdf8, #6366f1);
+  color: #f9fafb;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+/* Texto de ayuda debajo del input de archivo */
+.aurevi-label span {
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+/* Botón principal */
+.aurevi-primary-btn {
+  margin-top: 8px;
+  width: 100%;
+  border-radius: 999px;
+  border: none;
+  padding: 11px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(90deg, #fb7185, #e879f9, #a855f7);
+  color: #f9fafb;
+  box-shadow:
+    0 10px 25px rgba(236, 72, 153, 0.4),
+    0 0 0 1px rgba(15, 23, 42, 0.9);
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.12s ease,
+    filter 0.12s ease;
+}
+
+.aurevi-primary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow:
+    0 16px 35px rgba(236, 72, 153, 0.55),
+    0 0 0 1px rgba(15, 23, 42, 0.9);
+}
+
+.aurevi-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Responsive: en móviles, ajusta márgenes y padding */
+@media (max-width: 768px) {
+  .aurevi-page-header {
+    padding: 0 10px;
+  }
+
+  .aurevi-form-card {
+    margin: 0 10px;
+    padding: 16px 14px;
+  }
+
+  .aurevi-page-title {
+    font-size: 1.4rem;
+  }
+}
+
+/* ====== PASO A PASO EN CREAR VIDEO ====== */
+.aurevi-form-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(31, 41, 55, 0.95);
+}
+
+.aurevi-step {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.aurevi-step-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 1);
+  color: rgba(148, 163, 184, 0.95);
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  flex-shrink: 0;
+}
+
+.aurevi-step-label {
+  margin-left: 6px;
+  font-size: 11px;
+  color: rgba(156, 163, 175, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Línea que conecta los pasos */
+.aurevi-step-line {
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(55, 65, 81, 0.9), rgba(75, 85, 99, 0.9));
+}
+
+/* Estado activo (siguiente paso por completar) */
+.aurevi-step.active .aurevi-step-circle {
+  border-color: #a855f7;
+  color: #e5e7eb;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.6);
+}
+
+.aurevi-step.active .aurevi-step-label {
+  color: #e5e7eb;
+}
+
+/* Estado completado */
+.aurevi-step.done .aurevi-step-circle {
+  background: linear-gradient(135deg, #22c55e, #4ade80);
+  border-color: #22c55e;
+  color: #0b1120;
+}
+
+.aurevi-step.done .aurevi-step-label {
+  color: rgba(209, 250, 229, 0.98);
+}
+
+/* ====== BARRA DE PROGRESO DE SUBIDA ====== */
+.aurevi-upload-progress {
+  margin-top: 10px;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 1);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.95);
+  overflow: hidden;
+}
+
+.aurevi-upload-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #38bdf8, #6366f1, #a855f7, #f97316);
+  transition: width 0.2s ease-out;
+}
+
+/* Contenedor principal de la pantalla Crear */
+.aurevi-create-screen {
+  width: 100%;
+  max-width: 820px;        /* controla el ancho total */
+  margin: 0 auto;          /* centra la tarjeta */
+  padding: 20px 16px;      /* que no quede pegado a los bordes */
+  box-sizing: border-box;
+}
+
+/* Tarjeta de formulario */
+.aurevi-form-card {
+  width: 100%;
+  border-radius: 22px;
+  padding: 22px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(30, 41, 59, 0.6);
+  box-sizing: border-box;
+}
+
+/* Inputs alineados sin que se desborden */
+.aurevi-input,
+.aurevi-textarea,
+.aurevi-label select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ajuste global para evitar que cualquier elemento se salga */
+.aurevi-form * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.aurevi-upload-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.aurevi-upload-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  font-size: 11px;
+  color: #e5e7eb;
+  opacity: 0.7;
+}
+
+.aurevi-upload-step-circle {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: radial-gradient(circle at 30% 20%, #f97316, #4f46e5 60%, #020617);
+  color: #f9fafb;
+}
+
+.aurevi-upload-step-label {
+  white-space: nowrap;
+}
+
+/* activo */
+.aurevi-upload-step--active {
+  opacity: 1;
+  border-color: rgba(248, 250, 252, 0.9);
+  box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.5);
+}
+
+/* ya completado */
+.aurevi-upload-step--done {
+  opacity: 0.9;
+  border-color: rgba(52, 211, 153, 0.8);
+}
+
+/* Progreso */
+.aurevi-upload-progress {
+  margin-top: 10px;
+  margin-bottom: 8px;
+}
+
+.aurevi-upload-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.8);
+  overflow: hidden;
+}
+
+.aurevi-upload-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f97316, #ec4899, #a855f7);
+  transition: width 0.3s ease;
+}
+
+.aurevi-upload-progress-text {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #e5e7eb;
+  opacity: 0.9;
+}
+
+.aurevi-header {
+  width: 100%;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: center;
+  background: rgba(10, 15, 25, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+.aurevi-header-inner {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;           /* ← necesario */
+  align-items: center;     /* ← centrado vertical */
+  justify-content: space-between; /* ← logo a la izquierda, mundos a la derecha */
+}
+
+.aurevi-world-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aurevi-world-switcher button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  font-size: 12px;
+}
+.aurevi-world-switcher .active {
+  background: linear-gradient(90deg,#8d4eff,#ff4bc2);
+  border-color: transparent;
+}

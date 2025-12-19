@@ -1,0 +1,33 @@
+.aurevi-bottom-bar{
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 9999;
+
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 30px;
+
+  display: flex;
+  justify-content: space-around;
+  gap: 6px;
+
+  padding: 10px 14px;
+  width: min(95%, 720px);
+
+  /* 🎬 animación */
+  transition: transform 220ms ease, opacity 220ms ease;
+  opacity: 1;
+  will-change: transform, opacity;
+}
+
+.aurevi-bottom-bar.is-hidden{
+  transform: translateX(-50%) translateY(130%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.aurevi-bottom-bar button{
+  transition: all 0.25s ease;
+}
