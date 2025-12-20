@@ -1,7 +1,7 @@
 // src/screens/Wallet.jsx
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { WORLD_LABELS } from "../worlds/WorldTypes";
+import { WORLD_LABELS } from "../worlds/worldTypes.js";
 
 function Wallet({ activeWorld, navigate }) {
   const [wallet, setWallet] = useState(null);
