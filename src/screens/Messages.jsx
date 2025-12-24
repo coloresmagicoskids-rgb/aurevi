@@ -69,32 +69,43 @@ function Messages() {
 
   // ---------- INIT: usuario + conversaciones ----------
   useEffect(() => {
-    const init = async () => {
+  const init = async () => {
+    try {
+      setLoading(true);
+      setErrorMsg("");
+
+      const user = await getCurrentUser();
+      if (!user) {
+        setErrorMsg("Necesitas iniciar sesión para usar los mensajes.");
+        setLoading(false);
+        return;
+      }
+
+      setCurrentUser(user);
+
+      // ✅ AQUÍ VA TU BLOQUE
       try {
-        setLoading(true);
-        setErrorMsg("");
-
-        const user = await getCurrentUser();
-        if (!user) {
-          setErrorMsg("Necesitas iniciar sesión para usar los mensajes.");
-          setLoading(false);
-          return;
-        }
-        setCurrentUser(user);
-
         const convos = await fetchConversationsForUser(user.id);
         setConversations(convos);
         setSelectedConv(convos?.[0] || null);
       } catch (err) {
-        console.error(err);
-        setErrorMsg("Error cargando tus conversaciones.");
-      } finally {
-        setLoading(false);
+        console.error("fetchConversationsForUser ERROR =>", err);
+        setErrorMsg(
+          "Error cargando tus conversaciones: " +
+            (err?.message || "desconocido")
+        );
       }
-    };
-    init();
-  }, []);
 
+    } catch (err) {
+      console.error("INIT ERROR =>", err);
+      setErrorMsg("Error inicializando mensajes.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  init();
+}, []);
   // ---------- Miembros ----------
   useEffect(() => {
     const loadMembers = async () => {
