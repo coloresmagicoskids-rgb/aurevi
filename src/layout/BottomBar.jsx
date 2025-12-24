@@ -80,7 +80,7 @@ function BottomBar({ currentScreen, navigate }) {
         style={currentScreen === "notifications" ? activeBtn : baseBtn}
         onClick={() => navigate("notifications")}
       >
-        <span style={iconStyle}>🔔</span>
+       <span style={iconStyle}>🔔</span>
         <span>Alertas</span>
       </button>
 

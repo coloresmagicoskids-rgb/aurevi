@@ -95,6 +95,11 @@ function Messages() {
             (err?.message || "desconocido")
         );
       }
+	  
+	  const { data: convId, error } = await supabase.rpc("get_or_create_dm", {
+  other_user: picked.id,
+});
+
 
     } catch (err) {
       console.error("INIT ERROR =>", err);
