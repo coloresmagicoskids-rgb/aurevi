@@ -4,14 +4,13 @@ import { supabase } from "../supabaseClient";
 
 import ConversationsList from "../sections/MessagesPanel/ConversationsList.jsx";
 import ChatWindow from "../sections/MessagesPanel/ChatWindow.jsx";
-import UserSearchModal from "../sections/MessagesPanel/UserSearchModal.jsx"; // ✅ NUEVO
+import UserSearchModal from "../sections/MessagesPanel/UserSearchModal.jsx";
 
 import {
   getCurrentUser,
   fetchConversationsForUser,
   fetchMessages,
   sendMessage,
-  createConversation,
   fetchMembersForConversations,
   fetchUnreadCountsForUser,
   markConversationRead,
@@ -26,18 +25,18 @@ function Messages() {
   const [membersByConv, setMembersByConv] = useState({});
   const [selectedConv, setSelectedConv] = useState(null);
 
-  const [messagesRaw, setMessagesRaw] = useState([]); // mensajes como vienen del service
+  const [messagesRaw, setMessagesRaw] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
   const [unreadByConv, setUnreadByConv] = useState({});
   const [typingUserIds, setTypingUserIds] = useState([]);
 
-  const [searchOpen, setSearchOpen] = useState(false); // ✅ NUEVO (solo una vez)
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const typingTimeoutRef = useRef(null);
 
-  // Helpers (tus mismos)
+  // Helpers
   const getProfileName = (profile) => {
     if (!profile) return "Creador";
     return (
@@ -55,9 +54,11 @@ function Messages() {
     if (!conv) return "";
     const members = membersByConv[conv.id] || [];
     if (!currentUser) return conv.title || "Conversación";
+
     const others = members.filter((m) => m.id !== currentUser.id);
     if (others.length === 0) return conv.title || "Notas personales";
     if (others.length === 1) return getProfileName(others[0]);
+
     const names = others.map(getProfileName);
     return (
       conv.title ||
@@ -69,48 +70,35 @@ function Messages() {
 
   // ---------- INIT: usuario + conversaciones ----------
   useEffect(() => {
-  const init = async () => {
-    try {
-      setLoading(true);
-      setErrorMsg("");
-
-      const user = await getCurrentUser();
-      if (!user) {
-        setErrorMsg("Necesitas iniciar sesión para usar los mensajes.");
-        setLoading(false);
-        return;
-      }
-
-      setCurrentUser(user);
-
-      // ✅ AQUÍ VA TU BLOQUE
+    const init = async () => {
       try {
+        setLoading(true);
+        setErrorMsg("");
+
+        const user = await getCurrentUser();
+        if (!user) {
+          setErrorMsg("Necesitas iniciar sesión para usar los mensajes.");
+          return;
+        }
+
+        setCurrentUser(user);
+
         const convos = await fetchConversationsForUser(user.id);
-        setConversations(convos);
-        setSelectedConv(convos?.[0] || null);
+        setConversations(convos || []);
+        setSelectedConv((convos || [])?.[0] || null);
       } catch (err) {
-        console.error("fetchConversationsForUser ERROR =>", err);
+        console.error("INIT ERROR =>", err);
         setErrorMsg(
-          "Error cargando tus conversaciones: " +
-            (err?.message || "desconocido")
+          "Error cargando tus conversaciones: " + (err?.message || "desconocido")
         );
+      } finally {
+        setLoading(false);
       }
-	  
-	  const { data: convId, error } = await supabase.rpc("get_or_create_dm", {
-  other_user: picked.id,
-});
+    };
 
+    init();
+  }, []);
 
-    } catch (err) {
-      console.error("INIT ERROR =>", err);
-      setErrorMsg("Error inicializando mensajes.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  init();
-}, []);
   // ---------- Miembros ----------
   useEffect(() => {
     const loadMembers = async () => {
@@ -182,7 +170,6 @@ function Messages() {
         (payload) => {
           const newMsg = payload.new;
 
-          // ✅ aquí era el bug: en este archivo NO existe setMessages, es setMessagesRaw
           setMessagesRaw((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
@@ -232,24 +219,21 @@ function Messages() {
     }
   };
 
-  // ---------- Enviar (lo usa MessageInput -> ChatWindow) ----------
+  // ---------- Enviar ----------
   const handleSendText = async (text) => {
     if (!text?.trim() || !currentUser || !selectedConv) return;
 
     try {
       setErrorMsg("");
 
-      // enviar real por service
       const msg = await sendMessage({
         conversationId: selectedConv.id,
         senderId: currentUser.id,
         content: text.trim(),
       });
 
-      // lo agregamos al estado
       setMessagesRaw((prev) => [...prev, msg]);
 
-      // dejar de escribir
       setTypingStatus({
         conversationId: selectedConv.id,
         userId: currentUser.id,
@@ -269,39 +253,44 @@ function Messages() {
     }
   };
 
-  // ---------- NUEVO: abrir modal (botón + Nuevo) ----------
+  // ---------- Abrir modal ----------
   const handleNewConversation = () => {
     if (!currentUser) return;
     setSearchOpen(true);
   };
 
-  // ---------- NUEVO: al escoger un usuario del modal ----------
+  // ---------- Al escoger un usuario del modal ----------
   const handlePickUser = async (u) => {
     if (!currentUser || !u?.id) return;
 
     try {
       setErrorMsg("");
 
-      // ✅ crea/abre conversación DM con ambos miembros
-      // Nota: si tu service NO evita duplicados, luego lo cambiamos a RPC get_or_create_dm.
-      const convId = await createConversation({
-        title: "", // DM no necesita título; el header lo saca del "otro"
-        memberIds: [currentUser.id, u.id],
-      });
+      // ✅ Evita DMs duplicados: crea o devuelve el existente
+      const { data: convId, error: rpcErr } = await supabase.rpc(
+        "get_or_create_dm",
+        { other_user: u.id }
+      );
+
+      if (rpcErr) throw rpcErr;
 
       // refrescar convos
       const convos = await fetchConversationsForUser(currentUser.id);
-      setConversations(convos);
+      setConversations(convos || []);
 
-      const found = convos.find((c) => c.id === convId);
+      const found = (convos || []).find((c) => c.id === convId);
       if (found) setSelectedConv(found);
+
+      setSearchOpen(false);
     } catch (err) {
       console.error(err);
-      setErrorMsg("No se pudo abrir el chat con ese usuario.");
+      setErrorMsg(
+        "No se pudo abrir el chat con ese usuario: " + (err?.message || "")
+      );
     }
   };
 
-  // ---------- Adaptadores: tu data -> UI nueva ----------
+  // ---------- Adaptadores: tu data -> UI ----------
   const uiConversations = useMemo(() => {
     return (conversations || []).map((c) => ({
       id: c.id,
@@ -312,7 +301,6 @@ function Messages() {
     }));
   }, [conversations, unreadByConv, membersByConv, currentUser]);
 
-  // ✅ uiActiveConv: DM -> nombre/avatar del otro, Grupo -> título
   const uiActiveConv = useMemo(() => {
     if (!selectedConv) return null;
 
@@ -401,7 +389,7 @@ function Messages() {
               conversations={uiConversations}
               activeId={selectedConv?.id || null}
               onSelect={(uiConv) => handleSelectConversation(uiConv._raw)}
-              onNew={handleNewConversation} // ✅ ABRE MODAL
+              onNew={handleNewConversation}
             />
 
             <ChatWindow
@@ -412,7 +400,6 @@ function Messages() {
             />
           </div>
 
-          {/* ✅ MODAL */}
           <UserSearchModal
             open={searchOpen}
             onClose={() => setSearchOpen(false)}
