@@ -29,6 +29,10 @@ import {
   isCurrentSessionRevoked,
 } from "./core/sessionTracker";
 
+// ✅ Username obligatorio
+import { useRequireUsername } from "./hooks/useRequireUsername";
+import ChooseUsernameModal from "./components/ChooseUsernameModal";
+
 function App() {
   const [currentScreen, setCurrentScreen] = useState("home");
   const [screenParams, setScreenParams] = useState(null);
@@ -36,6 +40,13 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   const { activeWorld } = useWorld();
+
+  // ✅ Username gate
+  const {
+    loading: usernameLoading,
+    needsUsername,
+    refresh: refreshUsernameState,
+  } = useRequireUsername(user?.id);
 
   // ==================================================
   // AUTH / USUARIO (NO BLOQUEA LA APP)
@@ -148,7 +159,9 @@ function App() {
       case "market":
         return <Marketplace activeWorld={activeWorld} navigate={navigate} />;
       case "marketPublish":
-        return <PublishMarketItem activeWorld={activeWorld} navigate={navigate} />;
+        return (
+          <PublishMarketItem activeWorld={activeWorld} navigate={navigate} />
+        );
       case "marketDetail":
         return (
           <MarketItemDetail
@@ -166,12 +179,7 @@ function App() {
       case "profile":
         return <Profile navigate={navigate} />;
       case "watch":
-        return (
-          <WatchVideo
-            videoId={screenParams?.videoId}
-            navigate={navigate}
-          />
-        );
+        return <WatchVideo videoId={screenParams?.videoId} navigate={navigate} />;
       case "messages":
         return <Messages navigate={navigate} params={screenParams} />;
       default:
@@ -197,6 +205,27 @@ function App() {
       <div className="aurevi-app">
         <main className="aurevi-main">
           <AuthScreen />
+        </main>
+      </div>
+    );
+  }
+
+  // ==================================================
+  // ✅ BLOQUEO: si falta username, NO dejes entrar a la app
+  // ==================================================
+  const mustPickUsername = !usernameLoading && !!needsUsername;
+
+  if (mustPickUsername) {
+    return (
+      <div className="aurevi-app">
+        {/* Fondo “app” apagado, pero puedes dejarlo simple */}
+        <main className="aurevi-main" style={{ minHeight: "100vh" }}>
+          <ChooseUsernameModal
+            open={true}
+            onDone={async () => {
+              await refreshUsernameState();
+            }}
+          />
         </main>
       </div>
     );
