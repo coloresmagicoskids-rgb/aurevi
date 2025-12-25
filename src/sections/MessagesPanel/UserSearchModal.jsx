@@ -1,11 +1,11 @@
 // src/sections/MessagesPanel/UserSearchModal.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "../../supabaseClient"; // ✅ desde /sections/MessagesPanel sube 2 => src
+import { supabase } from "../../supabaseClient";
 
 export default function UserSearchModal({
   open = false,
   onClose = () => {},
-  onPickUser = (user) => {}, // user = { id, username, avatar_url, ... }
+  onPickUser = () => {},
   currentUserId = null,
 }) {
   const [q, setQ] = useState("");
@@ -25,19 +25,20 @@ export default function UserSearchModal({
   }, [open]);
 
   const cleaned = useMemo(() => (q || "").trim(), [q]);
-  
-  useEffect(() => {
-  console.log("UserSearchModal open =", open);
-  if (!open) return;
 
-  // aquí puedes ver si realmente se abre
-}, [open]);
+  // Normaliza el término: si escribe "@carlos", busca "carlos"
+  const termNormalized = useMemo(() => {
+    let t = (cleaned || "").trim();
+    if (t.startsWith("@")) t = t.slice(1);
+    return t;
+  }, [cleaned]);
 
   useEffect(() => {
     if (!open) return;
 
     const run = async () => {
-      const term = cleaned;
+      const term = termNormalized;
+
       if (!term || term.length < 2) {
         setResults([]);
         setErr("");
@@ -48,44 +49,39 @@ export default function UserSearchModal({
         setLoading(true);
         setErr("");
 
-        // ✅ Busca por username o display_name (si existe)
-        // Ajusta campos según tu tabla profiles
+        /**
+         * ✅ Query 100% seguro con tu esquema actual:
+         * - SOLO usa columnas confirmadas: id, username, avatar_url
+         * - Busca por username
+         *
+         * Si luego tú agregas display_name/email a profiles, ahí sí ampliamos.
+         */
         const { data, error } = await supabase
           .from("profiles")
-          .select("id, username, display_name, full_name, avatar_url, email")
-          .or(
-            `username.ilike.%${term}%,display_name.ilike.%${term}%,full_name.ilike.%${term}%,email.ilike.%${term}%`
-          )
+          .select("id, username, avatar_url")
+          .ilike("username", `%${term}%`)
           .limit(12);
 
         if (error) throw error;
 
-        // filtrar tu propio usuario
         const filtered = (data || []).filter((u) => u.id !== currentUserId);
         setResults(filtered);
       } catch (e) {
         console.error(e);
+        // Mantén el error “limpio” (sin mostrar SQL crudo al usuario)
         setErr(e?.message || "No se pudo buscar usuarios.");
       } finally {
         setLoading(false);
       }
     };
 
-    // debounce suave
     const t = setTimeout(run, 250);
     return () => clearTimeout(t);
-  }, [open, cleaned, currentUserId]);
+  }, [open, termNormalized, currentUserId]);
 
   if (!open) return null;
 
-  const getName = (u) =>
-    u?.display_name ||
-    u?.full_name ||
-    u?.username ||
-    u?.email ||
-    "Creador";
-
-  const getSub = (u) => u?.username ? `@${u.username}` : (u?.email || "");
+  const getName = (u) => u?.username ? `@${u.username}` : "Creador";
 
   const pick = (u) => {
     onPickUser(u);
@@ -93,20 +89,20 @@ export default function UserSearchModal({
   };
 
   return (
-  <div
-    style={{
-      position: "fixed",
-      inset: 0,
-      zIndex: 999999, // 👈 AQUÍ
-      background: "rgba(0,0,0,0.55)",
-      display: "grid",
-      placeItems: "center",
-      padding: 16,
-    }}
-    onMouseDown={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}
-  >
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 999999,
+        background: "rgba(0,0,0,0.55)",
+        display: "grid",
+        placeItems: "center",
+        padding: 16,
+      }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
         style={{
           width: "min(560px, 96vw)",
@@ -130,11 +126,9 @@ export default function UserSearchModal({
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, color: "white" }}>
-              Nuevo mensaje
-            </div>
+            <div style={{ fontWeight: 900, color: "white" }}>Nuevo mensaje</div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-              Busca por usuario, nombre o email
+              Busca por username (ej: <b>@carlos</b>)
             </div>
           </div>
 
@@ -181,7 +175,7 @@ export default function UserSearchModal({
               </div>
             ) : err ? (
               <div style={{ fontSize: 12, color: "#fca5a5" }}>{err}</div>
-            ) : cleaned.length > 0 && cleaned.length < 2 ? (
+            ) : cleaned.length > 0 && termNormalized.length < 2 ? (
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
                 Escribe 2 letras o más para buscar.
               </div>
@@ -190,8 +184,18 @@ export default function UserSearchModal({
         </div>
 
         {/* Results */}
-        <div style={{ padding: 12, paddingTop: 0, maxHeight: "52vh", overflowY: "auto" }}>
-          {results.length === 0 && cleaned.length >= 2 && !loading && !err ? (
+        <div
+          style={{
+            padding: 12,
+            paddingTop: 0,
+            maxHeight: "52vh",
+            overflowY: "auto",
+          }}
+        >
+          {results.length === 0 &&
+          termNormalized.length >= 2 &&
+          !loading &&
+          !err ? (
             <div
               style={{
                 padding: 12,
@@ -206,9 +210,8 @@ export default function UserSearchModal({
           ) : (
             results.map((u) => {
               const name = getName(u);
-              const sub = getSub(u);
               const avatar = u?.avatar_url || null;
-              const letter = (name || "C").trim().charAt(0).toUpperCase();
+              const letter = (u?.username || "C").trim().charAt(0).toUpperCase();
 
               return (
                 <button
@@ -285,11 +288,17 @@ export default function UserSearchModal({
                         textOverflow: "ellipsis",
                       }}
                     >
-                      {sub}
+                      Buscar por username
                     </div>
                   </div>
 
-                  <div style={{ marginLeft: "auto", color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
+                  <div
+                    style={{
+                      marginLeft: "auto",
+                      color: "rgba(255,255,255,0.65)",
+                      fontSize: 12,
+                    }}
+                  >
                     Abrir →
                   </div>
                 </button>
@@ -310,7 +319,7 @@ export default function UserSearchModal({
           }}
         >
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-            Tip: busca por <b>@username</b> o email
+            Tip: escribe <b>@usuario</b>
           </div>
 
           <button
