@@ -1,21 +1,26 @@
 // src/layout/BottomBar.jsx
-import React from "react";
+import React, { useMemo } from "react";
 import "./BottomBar.css";
 
 function BottomBar({ currentScreen, navigate }) {
+  const iconStyle = useMemo(() => ({ fontSize: 16, lineHeight: "16px" }), []);
+
   const baseBtn = {
+    flex: 1,            // ✅ clave: todos ocupan el mismo ancho
+    minWidth: 0,        // ✅ clave: permite encogerse sin desbordar
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
+    justifyContent: "center",
     gap: 4,
-    padding: "8px 10px",
-    borderRadius: 999,
+    padding: "8px 0",   // ✅ menos padding lateral para que quepa
+    borderRadius: 16,
     border: "1px solid transparent",
     background: "transparent",
     color: "#e5e7eb",
     fontSize: 12,
     cursor: "pointer",
-    minWidth: 60,
+    overflow: "hidden",
   };
 
   const activeBtn = {
@@ -26,81 +31,35 @@ function BottomBar({ currentScreen, navigate }) {
     color: "#f9fafb",
   };
 
-  const iconStyle = { fontSize: 16 };
+  const items = [
+    { key: "home", icon: "🏠", label: "Inicio" },
+    { key: "explore", icon: "🔍", label: "Explorar" },
+    { key: "create", icon: "➕", label: "Crear" },
+    { key: "market", icon: "🛒", label: "Mercado" },
+    { key: "wallet", icon: "🪙", label: "Monedas" },
+    { key: "notifications", icon: "🔔", label: "Alertas" },
+    { key: "messages", icon: "💬", label: "Mensajes" },
+    { key: "profile", icon: "👤", label: "Perfil" },
+  ];
 
   return (
-    <nav className="aurevi-bottom-bar">
-      <button
-        type="button"
-        style={currentScreen === "home" ? activeBtn : baseBtn}
-        onClick={() => navigate("home")}
-      >
-        <span style={iconStyle}>🏠</span>
-        <span>Inicio</span>
-      </button>
-
-      <button
-        type="button"
-        style={currentScreen === "explore" ? activeBtn : baseBtn}
-        onClick={() => navigate("explore")}
-      >
-        <span style={iconStyle}>🔍</span>
-        <span>Explorar</span>
-      </button>
-
-      <button
-        type="button"
-        style={currentScreen === "create" ? activeBtn : baseBtn}
-        onClick={() => navigate("create")}
-      >
-        <span style={iconStyle}>➕</span>
-        <span>Crear</span>
-      </button>
-
-      <button
-        type="button"
-        style={currentScreen === "market" ? activeBtn : baseBtn}
-        onClick={() => navigate("market")}
-      >
-        <span style={iconStyle}>🛒</span>
-        <span>Mercado</span>
-      </button>
-
-      <button
-        type="button"
-        style={currentScreen === "wallet" ? activeBtn : baseBtn}
-        onClick={() => navigate("wallet")}
-      >
-        <span style={iconStyle}>🪙</span>
-        <span>Monedas</span>
-      </button>
-
-      <button
-        type="button"
-        style={currentScreen === "notifications" ? activeBtn : baseBtn}
-        onClick={() => navigate("notifications")}
-      >
-       <span style={iconStyle}>🔔</span>
-        <span>Alertas</span>
-      </button>
-
-      <button
-        type="button"
-        style={currentScreen === "messages" ? activeBtn : baseBtn}
-        onClick={() => navigate("messages")}
-      >
-        <span style={iconStyle}>💬</span>
-        <span>Mensajes</span>
-      </button>
-
-      <button
-        type="button"
-        style={currentScreen === "profile" ? activeBtn : baseBtn}
-        onClick={() => navigate("profile")}
-      >
-        <span style={iconStyle}>👤</span>
-        <span>Perfil</span>
-      </button>
+    <nav className="aurevi-bottom-bar" role="navigation" aria-label="AUREVI">
+      {items.map((it) => (
+        <button
+          key={it.key}
+          type="button"
+          className="aurevi-bottom-item"
+          style={currentScreen === it.key ? activeBtn : baseBtn}
+          onClick={() => navigate(it.key)}
+          aria-current={currentScreen === it.key ? "page" : undefined}
+          title={it.label}
+        >
+          <span style={iconStyle}>{it.icon}</span>
+          <span className="label" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {it.label}
+          </span>
+        </button>
+      ))}
     </nav>
   );
 }
