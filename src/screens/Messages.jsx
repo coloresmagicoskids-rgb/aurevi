@@ -1,10 +1,12 @@
 // src/screens/Messages.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 
 import ConversationsList from "../sections/MessagesPanel/ConversationsList.jsx";
 import ChatWindow from "../sections/MessagesPanel/ChatWindow.jsx";
 import UserSearchModal from "../sections/MessagesPanel/UserSearchModal.jsx";
+
+import { usePresence } from "../hooks/usePresence";
 
 import {
   getCurrentUser,
@@ -26,6 +28,11 @@ function Messages() {
   const [selectedConv, setSelectedConv] = useState(null);
 
   const [messagesRaw, setMessagesRaw] = useState([]);
+  const messagesRef = useRef([]);
+  useEffect(() => {
+    messagesRef.current = messagesRaw || [];
+  }, [messagesRaw]);
+
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -67,6 +74,73 @@ function Messages() {
       }`
     );
   };
+
+  // ==================================================
+  // ✅ Presence: juntar TODOS los otherUserIds (lista + header)
+  // ==================================================
+  const otherUserIds = useMemo(() => {
+    if (!currentUser) return [];
+    const set = new Set();
+
+    for (const conv of conversations || []) {
+      const members = membersByConv[conv.id] || [];
+      for (const m of members) {
+        if (m?.id && m.id !== currentUser.id) set.add(m.id);
+      }
+    }
+    return Array.from(set);
+  }, [currentUser, conversations, membersByConv]);
+
+  const presence = usePresence(otherUserIds);
+
+  // ==================================================
+  // ✅ Read receipts: marcar leído hasta el último msg de esa conv
+  // ==================================================
+  const markReadUpTo = useCallback(
+    async (convId, msgs = []) => {
+      if (!currentUser?.id || !convId) return;
+
+      const lastId = msgs?.[msgs.length - 1]?.id;
+      if (!lastId) return;
+
+      try {
+        const { error } = await supabase.rpc("mark_conversation_read", {
+          p_conversation_id: convId,
+          p_last_message_id: lastId,
+        });
+        if (error) throw error;
+
+        setUnreadByConv((prev) => ({ ...prev, [convId]: 0 }));
+        return;
+      } catch (e) {
+        try {
+          await markConversationRead(convId, currentUser.id);
+          setUnreadByConv((prev) => ({ ...prev, [convId]: 0 }));
+        } catch (e2) {
+          console.warn("[reads] No se pudo marcar leído:", e2);
+        }
+      }
+    },
+    [currentUser?.id]
+  );
+
+  // ==================================================
+  // ✅ Reload convos (para botón ↻)
+  // ==================================================
+  const reloadConversations = useCallback(async () => {
+    if (!currentUser?.id) return;
+    try {
+      const convos = await fetchConversationsForUser(currentUser.id);
+      setConversations(convos || []);
+
+      if (selectedConv?.id) {
+        const still = (convos || []).find((c) => c.id === selectedConv.id);
+        if (!still) setSelectedConv((convos || [])?.[0] || null);
+      }
+    } catch (e) {
+      console.warn("reloadConversations falló:", e);
+    }
+  }, [currentUser?.id, selectedConv?.id]);
 
   // ---------- INIT: usuario + conversaciones ----------
   useEffect(() => {
@@ -144,16 +218,19 @@ function Messages() {
       }
       try {
         const msgs = await fetchMessages(selectedConv.id);
-        setMessagesRaw(msgs);
+        setMessagesRaw(msgs || []);
+        await markReadUpTo(selectedConv.id, msgs || []);
       } catch (err) {
         console.error(err);
         setErrorMsg("Error cargando mensajes.");
       }
     };
     loadMsgs();
-  }, [selectedConv]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConv?.id]);
 
-  // ---------- Realtime: escuchar nuevos mensajes de la conversación activa ----------
+  // ---------- Realtime: nuevos mensajes en conversación activa ----------
+  // (Puedes dejarlo; el GLOBAL también cubre, pero esto va fino)
   useEffect(() => {
     if (!selectedConv) return;
 
@@ -167,13 +244,20 @@ function Messages() {
           table: "messages",
           filter: `conversation_id=eq.${selectedConv.id}`,
         },
-        (payload) => {
+        async (payload) => {
           const newMsg = payload.new;
 
           setMessagesRaw((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
+
+          try {
+            if (currentUser?.id && newMsg?.sender_id !== currentUser.id) {
+              const next = [...(messagesRef.current || []), newMsg];
+              await markReadUpTo(selectedConv.id, next);
+            }
+          } catch {}
         }
       )
       .subscribe();
@@ -181,7 +265,81 @@ function Messages() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedConv]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConv?.id, currentUser?.id]);
+
+  // ==================================================
+  // ✅ Realtime GLOBAL: escucha nuevos mensajes de TODAS mis conversaciones
+  // ==================================================
+  const convIdsKey = useMemo(() => {
+    return (conversations || [])
+      .map((c) => c.id)
+      .filter(Boolean)
+      .join(",");
+  }, [conversations]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const convIds = (conversations || []).map((c) => c.id).filter(Boolean);
+    if (!convIds.length) return;
+
+    const inFilter = `conversation_id=in.(${convIds.join(",")})`;
+
+    const channel = supabase
+      .channel(`messages_global:${currentUser.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages", filter: inFilter },
+        async (payload) => {
+          const newMsg = payload.new;
+          if (!newMsg?.conversation_id) return;
+
+          const convId = newMsg.conversation_id;
+          const isMine = newMsg.sender_id === currentUser.id;
+          const isActive = selectedConv?.id === convId;
+
+          if (isActive) {
+            setMessagesRaw((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+
+            if (!isMine) {
+              const next = [...(messagesRef.current || []), newMsg];
+              await markReadUpTo(convId, next);
+            }
+          } else {
+            if (!isMine) {
+              setUnreadByConv((prev) => ({
+                ...prev,
+                [convId]: (prev[convId] || 0) + 1,
+              }));
+            }
+          }
+
+          // Actualiza último mensaje/fecha para ordenar tipo WhatsApp
+          setConversations((prev) => {
+            return (prev || []).map((c) => {
+              if (c.id !== convId) return c;
+              return {
+                ...c,
+                last_message: newMsg.content ?? "",
+                last_message_at: newMsg.created_at,
+                updated_at: newMsg.created_at,
+              };
+            });
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log("[realtime global] status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id, convIdsKey, selectedConv?.id, markReadUpTo]); // ✅ no usamos conversations directo
 
   // ---------- Polling typing ----------
   useEffect(() => {
@@ -207,16 +365,12 @@ function Messages() {
   }, [selectedConv, currentUser]);
 
   // ---------- UI: seleccionar conversación ----------
-  const handleSelectConversation = async (conv) => {
-    setSelectedConv(conv);
-    if (!currentUser) return;
+  const handleSelectConversation = async (uiConv) => {
+    const conv = uiConv?._raw || uiConv;
+    if (!conv?.id) return;
 
-    try {
-      await markConversationRead(conv.id, currentUser.id);
-      setUnreadByConv((prev) => ({ ...prev, [conv.id]: 0 }));
-    } catch (err) {
-      console.error("Error mark read:", err);
-    }
+    setSelectedConv(conv);
+    setUnreadByConv((prev) => ({ ...prev, [conv.id]: 0 }));
   };
 
   // ---------- Enviar ----------
@@ -245,8 +399,22 @@ function Messages() {
         typingTimeoutRef.current = null;
       }
 
-      setUnreadByConv((prev) => ({ ...prev, [selectedConv.id]: 0 }));
-      await markConversationRead(selectedConv.id, currentUser.id);
+      const next = [...(messagesRef.current || []), msg];
+      await markReadUpTo(selectedConv.id, next);
+
+      // También empuja el último mensaje en la lista (inmediato)
+      setConversations((prev) =>
+        (prev || []).map((c) =>
+          c.id !== selectedConv.id
+            ? c
+            : {
+                ...c,
+                last_message: msg.content ?? "",
+                last_message_at: msg.created_at,
+                updated_at: msg.created_at,
+              }
+        )
+      );
     } catch (err) {
       console.error(err);
       setErrorMsg("No se pudo enviar el mensaje.");
@@ -266,15 +434,12 @@ function Messages() {
     try {
       setErrorMsg("");
 
-      // ✅ Evita DMs duplicados: crea o devuelve el existente
       const { data: convId, error: rpcErr } = await supabase.rpc(
         "get_or_create_dm",
         { other_user: u.id }
       );
-
       if (rpcErr) throw rpcErr;
 
-      // refrescar convos
       const convos = await fetchConversationsForUser(currentUser.id);
       setConversations(convos || []);
 
@@ -290,16 +455,48 @@ function Messages() {
     }
   };
 
-  // ---------- Adaptadores: tu data -> UI ----------
+  // ---------- Adaptadores: data -> UI ----------
   const uiConversations = useMemo(() => {
-    return (conversations || []).map((c) => ({
-      id: c.id,
-      title: getDisplayNameForConversation(c),
-      unreadCount: unreadByConv[c.id] || 0,
-      lastMessage: c.last_message ? { text: c.last_message } : { text: "" },
-      _raw: c,
-    }));
-  }, [conversations, unreadByConv, membersByConv, currentUser]);
+    const list = (conversations || []).map((c) => {
+      const members = membersByConv[c.id] || [];
+      const others = currentUser
+        ? members.filter((m) => m.id !== currentUser.id)
+        : members;
+
+      const dmOtherId = others.length === 1 ? others[0]?.id : null;
+      const dmOnline = dmOtherId ? !!presence?.[dmOtherId]?.is_online : false;
+
+      return {
+        id: c.id,
+        title: getDisplayNameForConversation(c),
+        unreadCount: unreadByConv[c.id] || 0,
+        lastMessage: c.last_message ? { text: c.last_message } : { text: "" },
+        isOnline: dmOnline,
+        _raw: c,
+      };
+    });
+
+    // Orden WhatsApp (más reciente arriba)
+    list.sort((a, b) => {
+      const ar = a?._raw || {};
+      const br = b?._raw || {};
+      const at =
+        ar.last_message_at ||
+        ar.last_message_created_at ||
+        ar.updated_at ||
+        ar.created_at ||
+        0;
+      const bt =
+        br.last_message_at ||
+        br.last_message_created_at ||
+        br.updated_at ||
+        br.created_at ||
+        0;
+      return new Date(bt).getTime() - new Date(at).getTime();
+    });
+
+    return list;
+  }, [conversations, unreadByConv, membersByConv, currentUser, presence]);
 
   const uiActiveConv = useMemo(() => {
     if (!selectedConv) return null;
@@ -326,8 +523,13 @@ function Messages() {
 
     const headerName = isDM ? dmName : groupTitle;
 
+    const dmOtherId = isDM ? others[0]?.id : null;
+    const dmOnline = dmOtherId ? !!presence?.[dmOtherId]?.is_online : false;
+
     const headerSubtitle = isDM
-      ? "Chat directo"
+      ? dmOnline
+        ? "En línea"
+        : "Chat directo"
       : `${members.length || 0} participantes`;
 
     return {
@@ -338,8 +540,9 @@ function Messages() {
       headerName,
       headerAvatar: dmAvatar,
       headerSubtitle,
+      isOnline: dmOnline,
     };
-  }, [selectedConv, membersByConv, currentUser, typingUserIds]);
+  }, [selectedConv, membersByConv, currentUser, typingUserIds, presence]);
 
   const uiMessages = useMemo(() => {
     return (messagesRaw || []).map((m) => ({
@@ -388,8 +591,10 @@ function Messages() {
             <ConversationsList
               conversations={uiConversations}
               activeId={selectedConv?.id || null}
-              onSelect={(uiConv) => handleSelectConversation(uiConv._raw)}
+              onSelect={handleSelectConversation}
               onNew={handleNewConversation}
+              onReload={reloadConversations}
+              presence={presence}
             />
 
             <ChatWindow
@@ -397,6 +602,7 @@ function Messages() {
               messages={uiMessages}
               currentUserId={currentUser.id}
               onSend={handleSendText}
+              presence={presence}
             />
           </div>
 

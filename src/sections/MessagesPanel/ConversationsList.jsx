@@ -1,61 +1,15 @@
 // ConversationsList.jsx
-import React, { useEffect, useState, useCallback } from "react";
-import { supabase } from "../../supabaseClient"; // ✅ Ajusta esta ruta si tu supabaseClient está en otro lugar
+import React from "react";
 import ConversationItem from "./ConversationItem.jsx";
 
 export default function ConversationsList({
-  conversations: conversationsProp = [],
+  conversations = [],
   activeId = null,
   onSelect = () => {},
-  onNew = () => {}, // ✅ ahora abre el modal real
+  onNew = () => {},
+  onReload = null, // opcional: si quieres un botón ↻ que llame al padre
+  loading = false, // opcional
 }) {
-  // ✅ Si te pasan conversaciones por props, seguimos soportándolo.
-  // ✅ Si no te pasan nada, cargamos desde Supabase aquí.
-  const [conversations, setConversations] = useState(conversationsProp);
-  const [loading, setLoading] = useState(false);
-
-  // Mantener sync si el padre aún maneja conversaciones
-  useEffect(() => {
-    setConversations(conversationsProp || []);
-  }, [conversationsProp]);
-
-  const loadConversations = useCallback(async () => {
-    setLoading(true);
-
-    const { data, error } = await supabase
-      .from("conversations")
-      .select(
-        `
-        id,
-        updated_at,
-        conversation_members (
-          user_id,
-          profiles (
-            username,
-            avatar_url
-          )
-        )
-      `
-      )
-      .order("updated_at", { ascending: false });
-
-    if (error) {
-      console.error("Error cargando conversaciones:", error);
-      setLoading(false);
-      return;
-    }
-
-    setConversations(data || []);
-    setLoading(false);
-  }, []);
-
-  // ✅ Auto-cargar solo si NO te están pasando conversaciones desde arriba
-  useEffect(() => {
-    if ((conversationsProp || []).length === 0) {
-      loadConversations();
-    }
-  }, [conversationsProp, loadConversations]);
-
   return (
     <div
       style={{
@@ -90,23 +44,25 @@ export default function ConversationsList({
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={loadConversations}
-            style={{
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.06)",
-              color: "white",
-              fontWeight: 700,
-              padding: "8px 10px",
-              borderRadius: 12,
-              cursor: "pointer",
-              opacity: loading ? 0.7 : 1,
-            }}
-            title="Recargar conversaciones"
-            disabled={loading}
-          >
-            {loading ? "..." : "↻"}
-          </button>
+          {!!onReload && (
+            <button
+              onClick={onReload}
+              style={{
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                color: "white",
+                fontWeight: 700,
+                padding: "8px 10px",
+                borderRadius: 12,
+                cursor: "pointer",
+                opacity: loading ? 0.7 : 1,
+              }}
+              title="Recargar conversaciones"
+              disabled={loading}
+            >
+              {loading ? "..." : "↻"}
+            </button>
+          )}
 
           <button
             onClick={onNew}
@@ -161,7 +117,7 @@ export default function ConversationsList({
           conversations.map((c) => (
             <ConversationItem
               key={c.id}
-              conversation={c}
+              conversation={c} // <- aquí viene title/unread/isOnline/lastMessage
               active={c.id === activeId}
               onClick={() => onSelect(c)}
             />

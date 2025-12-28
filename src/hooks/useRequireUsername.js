@@ -1,23 +1,30 @@
 // src/hooks/useRequireUsername.js
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 
-const withTimeout = (promise, ms = 8000, label = "timeout") =>
-  Promise.race([
+function withTimeout(promise, ms = 8000) {
+  return Promise.race([
     promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("useRequireUsername timeout")), ms)
+    ),
   ]);
+}
 
 export function useRequireUsername(userId) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [needsUsername, setNeedsUsername] = useState(false);
   const [profile, setProfile] = useState(null);
+  const reqRef = useRef(0);
 
-  const load = async (uid) => {
-    if (!uid) {
-      setProfile(null);
-      setNeedsUsername(false);
+  const run = useCallback(async () => {
+    const myReq = ++reqRef.current;
+
+    // Si no hay usuario, no hay gate.
+    if (!userId) {
       setLoading(false);
+      setNeedsUsername(false);
+      setProfile(null);
       return;
     }
 
@@ -28,14 +35,17 @@ export function useRequireUsername(userId) {
         supabase
           .from("profiles")
           .select("id, username, avatar_url")
-          .eq("id", uid)
+          .eq("id", userId)
           .single(),
-        8000,
-        "profiles.select timeout"
+        8000
       );
 
+      // ignora respuestas viejas
+      if (myReq !== reqRef.current) return;
+
       if (error) {
-        console.error("[profiles] error:", error);
+        console.warn("[useRequireUsername] profiles error:", error);
+        // Importante: NO bloquees la app por esto
         setProfile(null);
         setNeedsUsername(false);
         setLoading(false);
@@ -47,31 +57,29 @@ export function useRequireUsername(userId) {
       setNeedsUsername(missing);
       setLoading(false);
     } catch (e) {
-      console.warn("[profiles] falló o timeout:", e);
-      // No bloquees la app por esto
+      if (myReq !== reqRef.current) return;
+      console.warn("[useRequireUsername] falló o timeout:", e);
+      // Importante: NO bloquees la app por esto
       setProfile(null);
       setNeedsUsername(false);
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
-    let alive = true;
+    run();
 
-    (async () => {
-      if (!alive) return;
-      await load(userId);
-    })();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      run();
+    });
 
-    return () => {
-      alive = false;
-    };
-  }, [userId]);
+    return () => sub?.subscription?.unsubscribe?.();
+  }, [run]);
 
   return {
     loading,
     needsUsername,
     profile,
-    refresh: async () => load(userId),
+    refresh: run,
   };
 }
