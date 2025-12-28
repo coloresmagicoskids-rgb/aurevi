@@ -1,22 +1,19 @@
 // src/hooks/useRequireUsername.js
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+
+const withTimeout = (promise, ms = 8000, label = "timeout") =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
+  ]);
 
 export function useRequireUsername(userId) {
   const [loading, setLoading] = useState(true);
   const [needsUsername, setNeedsUsername] = useState(false);
   const [profile, setProfile] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-
-    // 1) Si App pasa userId úsalo; si no, cae a getUser()
-    let uid = userId;
-    if (!uid) {
-      const { data } = await supabase.auth.getUser();
-      uid = data?.user?.id ?? null;
-    }
-
+  const load = async (uid) => {
     if (!uid) {
       setProfile(null);
       setNeedsUsername(false);
@@ -24,59 +21,57 @@ export function useRequireUsername(userId) {
       return;
     }
 
-    // 2) maybeSingle: si no hay fila, NO lanza error duro
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, username, avatar_url")
-      .eq("id", uid)
-      .maybeSingle();
+    setLoading(true);
 
-    // 3) Si hay error real (RLS / permisos / etc), mejor pedir username
-    //    porque no podemos confirmar el perfil.
-    if (error) {
-      console.error("[useRequireUsername] profiles read error:", error);
-      setProfile(null);
-      setNeedsUsername(true); // 👈 importante
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from("profiles")
+          .select("id, username, avatar_url")
+          .eq("id", uid)
+          .single(),
+        8000,
+        "profiles.select timeout"
+      );
+
+      if (error) {
+        console.error("[profiles] error:", error);
+        setProfile(null);
+        setNeedsUsername(false);
+        setLoading(false);
+        return;
+      }
+
+      setProfile(data);
+      const missing = !data?.username || data.username.trim().length === 0;
+      setNeedsUsername(missing);
       setLoading(false);
-      return;
-    }
-
-    // 4) Si no existe perfil, también pedir username (o crear perfil)
-    if (!data) {
+    } catch (e) {
+      console.warn("[profiles] falló o timeout:", e);
+      // No bloquees la app por esto
       setProfile(null);
-      setNeedsUsername(true);
+      setNeedsUsername(false);
       setLoading(false);
-      return;
     }
-
-    setProfile(data);
-    const missing = !data.username || data.username.trim().length === 0;
-    setNeedsUsername(missing);
-    setLoading(false);
-  }, [userId]);
+  };
 
   useEffect(() => {
     let alive = true;
 
-    const run = async () => {
+    (async () => {
       if (!alive) return;
-      await load();
-    };
-
-    run();
-
-    const { data: sub } = supabase.auth.onAuthStateChange(() => run());
+      await load(userId);
+    })();
 
     return () => {
       alive = false;
-      sub?.subscription?.unsubscribe?.();
     };
-  }, [load]);
+  }, [userId]);
 
   return {
     loading,
     needsUsername,
     profile,
-    refresh: load,
+    refresh: async () => load(userId),
   };
 }

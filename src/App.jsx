@@ -33,6 +33,14 @@ import {
 import { useRequireUsername } from "./hooks/useRequireUsername";
 import ChooseUsernameModal from "./components/ChooseUsernameModal";
 
+const withTimeout = (promise, ms = 8000, label = "timeout") =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(label)), ms)
+    ),
+  ]);
+
 function App() {
   const [currentScreen, setCurrentScreen] = useState("home");
   const [screenParams, setScreenParams] = useState(null);
@@ -41,25 +49,32 @@ function App() {
 
   const { activeWorld } = useWorld();
 
-  // ✅ Username gate
-  const {
-    loading: usernameLoading,
-    needsUsername,
-    refresh: refreshUsernameState,
-  } = useRequireUsername(user?.id);
+  // ✅ Username gate (NO bloquea el arranque)
+  const { loading: usernameLoading, needsUsername, refresh: refreshUsernameState } =
+    useRequireUsername(user?.id);
 
   // ==================================================
-  // AUTH / USUARIO
+  // AUTH / USUARIO (BLINDADO: nunca se queda infinito)
   // ==================================================
   useEffect(() => {
     let mounted = true;
 
     const init = async () => {
       try {
-        const { data } = await supabase.auth.getUser();
-        if (mounted) setUser(data?.user ?? null);
+        // Si getUser se cuelga, salimos igual
+        const { data } = await withTimeout(
+          supabase.auth.getUser(),
+          8000,
+          "getUser timeout"
+        );
+
+        if (!mounted) return;
+        setUser(data?.user ?? null);
       } catch (e) {
-        console.warn("getUser falló:", e);
+        console.warn("[BOOT] getUser falló o timeout:", e);
+        if (!mounted) return;
+        // Importante: NO te quedas cargando por esto
+        setUser(null);
       } finally {
         if (mounted) setAuthLoading(false);
       }
@@ -67,9 +82,13 @@ function App() {
 
     init();
 
+    // Si supabase sí emite authStateChange, lo tomamos
     const { data: subscription } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        if (mounted) setUser(session?.user ?? null);
+        if (!mounted) return;
+        setUser(session?.user ?? null);
+        // Si por alguna razón authLoading seguía true, lo apagamos
+        setAuthLoading(false);
       }
     );
 
@@ -80,7 +99,7 @@ function App() {
   }, []);
 
   // ==================================================
-  // ✅ SESIÓN / DISPOSITIVO
+  // ✅ SESIÓN / DISPOSITIVO (no bloquea UI)
   // ==================================================
   useEffect(() => {
     if (!user?.id) return;
@@ -89,7 +108,11 @@ function App() {
 
     const safeUpsert = async () => {
       try {
-        await upsertUserSession({ appVersion: "3.0.0" });
+        await withTimeout(
+          upsertUserSession({ appVersion: "3.0.0" }),
+          8000,
+          "upsertUserSession timeout"
+        );
       } catch (e) {
         console.warn("upsertUserSession falló:", e);
       }
@@ -97,9 +120,14 @@ function App() {
 
     const heartbeat = async () => {
       try {
-        await touchSession();
+        await withTimeout(touchSession(), 8000, "touchSession timeout");
 
-        const revoked = await isCurrentSessionRevoked();
+        const revoked = await withTimeout(
+          isCurrentSessionRevoked(),
+          8000,
+          "isCurrentSessionRevoked timeout"
+        );
+
         if (revoked) {
           console.warn("Sesión revocada → cerrando sesión");
           await supabase.auth.signOut();
@@ -112,9 +140,7 @@ function App() {
 
     safeUpsert().then(() => heartbeat());
 
-    intervalId = window.setInterval(() => {
-      heartbeat();
-    }, 25_000);
+    intervalId = window.setInterval(() => heartbeat(), 25_000);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") heartbeat();
@@ -184,7 +210,7 @@ function App() {
   };
 
   // ==================================================
-  // ESTADOS ESPECIALES
+  // ESTADOS ESPECIALES (solo authLoading aquí)
   // ==================================================
   if (authLoading) {
     return (
@@ -206,22 +232,11 @@ function App() {
     );
   }
 
-  // Mientras se evalúa el username en background
-  if (usernameLoading) {
-    return (
-      <div className="aurevi-app">
-        <main className="aurevi-main">
-          <p style={{ color: "#9ca3af" }}>Preparando tu cuenta...</p>
-        </main>
-      </div>
-    );
-  }
+  // ✅ Gate NO bloquea arranque:
+  // Si usernameLoading tarda, igual se renderiza la app,
+  // y el modal aparece cuando ya se sepa si falta username.
+  const mustPickUsername = !usernameLoading && !!needsUsername;
 
-  const mustPickUsername = !!needsUsername;
-
-  // ==================================================
-  // APP NORMAL (+ MODAL OBLIGATORIO)
-  // ==================================================
   return (
     <div className="aurevi-app">
       <ChooseUsernameModal
