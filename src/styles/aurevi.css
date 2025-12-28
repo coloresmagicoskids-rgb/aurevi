@@ -177,3 +177,8 @@ body {
   }
 }
 
+.aurevi-main,
+.aurevi-screen {
+  padding-bottom: 90px; /* para que la barra no tape botones/inputs */
+}
+

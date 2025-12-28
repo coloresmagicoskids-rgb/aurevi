@@ -1,33 +1,80 @@
-.aurevi-bottom-bar{
+/* src/layout/BottomBar.css */
+
+/* Barra inferior: que siempre quepa en móvil */
+.aurevi-bottombar{
   position: fixed;
   left: 50%;
-  transform: translateX(-50%) translateY(0);
-  bottom: calc(12px + env(safe-area-inset-bottom));
-  z-index: 9999;
+  transform: translateX(-50%);
+  bottom: 12px;
 
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 30px;
+  width: calc(100% - 24px);
+  max-width: 720px;
 
   display: flex;
-  justify-content: space-around;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 10px 10px;
   gap: 6px;
 
-  padding: 10px 14px;
-  width: min(95%, 720px);
+  border-radius: 22px;
+  overflow: hidden;
+  z-index: 9999;
 
-  /* 🎬 animación */
-  transition: transform 220ms ease, opacity 220ms ease;
-  opacity: 1;
-  will-change: transform, opacity;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(10px);
 }
 
-.aurevi-bottom-bar.is-hidden{
-  transform: translateX(-50%) translateY(130%);
-  opacity: 0;
-  pointer-events: none;
+/* Cada botón ocupa un espacio igual */
+.aurevi-bottombar .nav-item{
+  flex: 1;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  padding: 8px 0;
+
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255,255,255,0.75);
+  cursor: pointer;
+  border-radius: 999px;
 }
 
-.aurevi-bottom-bar button{
-  transition: all 0.25s ease;
+.aurevi-bottombar .nav-item .icon{
+  font-size: 16px;
+  line-height: 1;
+}
+
+.aurevi-bottombar .nav-item .label{
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Activo */
+.aurevi-bottombar .nav-item.active{
+  background: linear-gradient(90deg, rgba(79,70,229,0.9), rgba(236,72,153,0.9));
+  border: 1px solid rgba(248,250,252,0.9);
+  color: #fff;
+}
+
+/* En móvil: ocultar texto para que quepan 8 */
+@media (max-width: 520px){
+  .aurevi-bottombar .nav-item .label{
+    display: none;
+  }
+
+  .aurevi-bottombar{
+    padding: 10px 8px;
+    gap: 4px;
+  }
 }
