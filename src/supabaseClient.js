@@ -4,19 +4,25 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Ayuda a detectar el problema en Vercel (ver Console del navegador)
+// 🔴 Guardia crítica: evita loading infinito en producción
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("[SUPABASE] Variables faltantes:", {
+  console.error("[SUPABASE] Variables de entorno faltantes:", {
     VITE_SUPABASE_URL: supabaseUrl ? "OK" : "MISSING",
     VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? "OK" : "MISSING",
   });
+
+  throw new Error(
+    "Faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY. Revisa Vercel → Settings → Environment Variables."
+  );
 }
 
-// Evita crashes raros por URL inválida (y hace el error obvio)
+// 🔴 Validación de URL (defensiva)
 try {
-  if (supabaseUrl) new URL(supabaseUrl);
+  new URL(supabaseUrl);
 } catch {
-  console.error("[SUPABASE] VITE_SUPABASE_URL no es una URL válida:", supabaseUrl);
+  throw new Error(
+    `[SUPABASE] VITE_SUPABASE_URL no es una URL válida: ${supabaseUrl}`
+  );
 }
 
-export const supabase = createClient(supabaseUrl ?? "", supabaseAnonKey ?? "");
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
