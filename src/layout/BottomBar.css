@@ -1,35 +1,42 @@
-/* src/layout/BottomBar.css */
-
-/* Barra inferior: que siempre quepa en móvil */
-.aurevi-bottombar{
+/* Barra inferior fija */
+.aurevi-bottombar {
   position: fixed;
+  bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 12px;
+  z-index: 9999;
 
   width: calc(100% - 24px);
   max-width: 720px;
 
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 24px;
+  padding: 8px 6px;
 
-  padding: 10px 10px;
-  gap: 6px;
-
-  border-radius: 22px;
-  overflow: hidden;
-  z-index: 9999;
-
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.10);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 
-/* Cada botón ocupa un espacio igual */
-.aurevi-bottombar .nav-item{
-  flex: 1;
-  min-width: 0;
+/* CONTENEDOR DESLIZABLE */
+.aurevi-bottombar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.aurevi-bottombar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Botones */
+.nav-item {
+  flex: 0 0 auto;
+  min-width: 64px;
 
   display: flex;
   flex-direction: column;
@@ -39,42 +46,32 @@
 
   padding: 8px 0;
 
-  border: 1px solid transparent;
   background: transparent;
-  color: rgba(255,255,255,0.75);
+  border: none;
   cursor: pointer;
-  border-radius: 999px;
-}
 
-.aurevi-bottombar .nav-item .icon{
-  font-size: 16px;
-  line-height: 1;
-}
-
-.aurevi-bottombar .nav-item .label{
+  color: #111;
   font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+}
+
+.nav-item .icon {
+  font-size: 18px;
 }
 
 /* Activo */
-.aurevi-bottombar .nav-item.active{
-  background: linear-gradient(90deg, rgba(79,70,229,0.9), rgba(236,72,153,0.9));
-  border: 1px solid rgba(248,250,252,0.9);
+.nav-item.active {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 120, 200, 0.9),
+    rgba(120, 160, 255, 0.9)
+  );
+  border-radius: 18px;
   color: #fff;
 }
 
-/* En móvil: ocultar texto para que quepan 8 */
-@media (max-width: 520px){
-  .aurevi-bottombar .nav-item .label{
+/* En móviles: ocultar texto */
+@media (max-width: 520px) {
+  .nav-item .label {
     display: none;
-  }
-
-  .aurevi-bottombar{
-    padding: 10px 8px;
-    gap: 4px;
   }
 }
