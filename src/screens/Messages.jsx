@@ -29,9 +29,15 @@ function Messages() {
 
   const [messagesRaw, setMessagesRaw] = useState([]);
   const messagesRef = useRef([]);
+  const selectedConvRef = useRef(null);
+
   useEffect(() => {
     messagesRef.current = messagesRaw || [];
   }, [messagesRaw]);
+
+  useEffect(() => {
+    selectedConvRef.current = selectedConv;
+  }, [selectedConv]);
 
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -113,6 +119,7 @@ function Messages() {
         setUnreadByConv((prev) => ({ ...prev, [convId]: 0 }));
         return;
       } catch (e) {
+        // fallback legacy
         try {
           await markConversationRead(convId, currentUser.id);
           setUnreadByConv((prev) => ({ ...prev, [convId]: 0 }));
@@ -125,7 +132,7 @@ function Messages() {
   );
 
   // ==================================================
-  // ✅ Reload convos (para botón ↻)
+  // ✅ Reload convos (botón ↻)
   // ==================================================
   const reloadConversations = useCallback(async () => {
     if (!currentUser?.id) return;
@@ -133,14 +140,14 @@ function Messages() {
       const convos = await fetchConversationsForUser(currentUser.id);
       setConversations(convos || []);
 
-      if (selectedConv?.id) {
-        const still = (convos || []).find((c) => c.id === selectedConv.id);
+      if (selectedConvRef.current?.id) {
+        const still = (convos || []).find((c) => c.id === selectedConvRef.current.id);
         if (!still) setSelectedConv((convos || [])?.[0] || null);
       }
     } catch (e) {
       console.warn("reloadConversations falló:", e);
     }
-  }, [currentUser?.id, selectedConv?.id]);
+  }, [currentUser?.id]);
 
   // ---------- INIT: usuario + conversaciones ----------
   useEffect(() => {
@@ -212,7 +219,7 @@ function Messages() {
   // ---------- Mensajes (cuando cambias conv) ----------
   useEffect(() => {
     const loadMsgs = async () => {
-      if (!selectedConv) {
+      if (!selectedConv?.id) {
         setMessagesRaw([]);
         return;
       }
@@ -229,47 +236,11 @@ function Messages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConv?.id]);
 
-  // ---------- Realtime: nuevos mensajes en conversación activa ----------
-  // (Puedes dejarlo; el GLOBAL también cubre, pero esto va fino)
-  useEffect(() => {
-    if (!selectedConv) return;
-
-    const channel = supabase
-      .channel(`messages:${selectedConv.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${selectedConv.id}`,
-        },
-        async (payload) => {
-          const newMsg = payload.new;
-
-          setMessagesRaw((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
-
-          try {
-            if (currentUser?.id && newMsg?.sender_id !== currentUser.id) {
-              const next = [...(messagesRef.current || []), newMsg];
-              await markReadUpTo(selectedConv.id, next);
-            }
-          } catch {}
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConv?.id, currentUser?.id]);
-
   // ==================================================
-  // ✅ Realtime GLOBAL: escucha nuevos mensajes de TODAS mis conversaciones
+  // ✅ Realtime GLOBAL: TODOS mis chats (WhatsApp feeling)
+  // - Actualiza chat abierto
+  // - Incrementa unread en chats no abiertos
+  // - Actualiza lista y la sube al tope
   // ==================================================
   const convIdsKey = useMemo(() => {
     return (conversations || [])
@@ -297,19 +268,23 @@ function Messages() {
 
           const convId = newMsg.conversation_id;
           const isMine = newMsg.sender_id === currentUser.id;
-          const isActive = selectedConv?.id === convId;
+          const activeId = selectedConvRef.current?.id;
+          const isActive = activeId === convId;
 
+          // 1) Si es el chat abierto: agregar al hilo en pantalla
           if (isActive) {
             setMessagesRaw((prev) => {
               if (prev.some((m) => m.id === newMsg.id)) return prev;
               return [...prev, newMsg];
             });
 
+            // si NO es mío, lo marco leído
             if (!isMine) {
               const next = [...(messagesRef.current || []), newMsg];
               await markReadUpTo(convId, next);
             }
           } else {
+            // 2) Si NO es el chat abierto: subir unread instantáneo
             if (!isMine) {
               setUnreadByConv((prev) => ({
                 ...prev,
@@ -318,17 +293,21 @@ function Messages() {
             }
           }
 
-          // Actualiza último mensaje/fecha para ordenar tipo WhatsApp
+          // 3) Actualiza lista (último mensaje/fecha) y súbela al tope
           setConversations((prev) => {
-            return (prev || []).map((c) => {
-              if (c.id !== convId) return c;
-              return {
-                ...c,
-                last_message: newMsg.content ?? "",
-                last_message_at: newMsg.created_at,
-                updated_at: newMsg.created_at,
-              };
-            });
+            const list = prev || [];
+            const idx = list.findIndex((c) => c.id === convId);
+            if (idx === -1) return list;
+
+            const updated = {
+              ...list[idx],
+              last_message: newMsg.content ?? "",
+              last_message_at: newMsg.created_at,
+              updated_at: newMsg.created_at,
+            };
+
+            const without = [...list.slice(0, idx), ...list.slice(idx + 1)];
+            return [updated, ...without];
           });
         }
       )
@@ -339,7 +318,7 @@ function Messages() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUser?.id, convIdsKey, selectedConv?.id, markReadUpTo]); // ✅ no usamos conversations directo
+  }, [currentUser?.id, convIdsKey, markReadUpTo]); // ✅ sin selectedConv para evitar resuscripciones
 
   // ---------- Polling typing ----------
   useEffect(() => {
@@ -370,6 +349,8 @@ function Messages() {
     if (!conv?.id) return;
 
     setSelectedConv(conv);
+
+    // optimista: al entrar, unread 0; loadMsgs/markReadUpTo lo confirma
     setUnreadByConv((prev) => ({ ...prev, [conv.id]: 0 }));
   };
 
@@ -402,19 +383,22 @@ function Messages() {
       const next = [...(messagesRef.current || []), msg];
       await markReadUpTo(selectedConv.id, next);
 
-      // También empuja el último mensaje en la lista (inmediato)
-      setConversations((prev) =>
-        (prev || []).map((c) =>
-          c.id !== selectedConv.id
-            ? c
-            : {
-                ...c,
-                last_message: msg.content ?? "",
-                last_message_at: msg.created_at,
-                updated_at: msg.created_at,
-              }
-        )
-      );
+      // Empuja último mensaje inmediato + mueve al tope
+      setConversations((prev) => {
+        const list = prev || [];
+        const idx = list.findIndex((c) => c.id === selectedConv.id);
+        if (idx === -1) return list;
+
+        const updated = {
+          ...list[idx],
+          last_message: msg.content ?? "",
+          last_message_at: msg.created_at,
+          updated_at: msg.created_at,
+        };
+
+        const without = [...list.slice(0, idx), ...list.slice(idx + 1)];
+        return [updated, ...without];
+      });
     } catch (err) {
       console.error(err);
       setErrorMsg("No se pudo enviar el mensaje.");
