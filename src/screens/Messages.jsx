@@ -6,8 +6,6 @@ import ConversationsList from "../sections/MessagesPanel/ConversationsList.jsx";
 import ChatWindow from "../sections/MessagesPanel/ChatWindow.jsx";
 import UserSearchModal from "../sections/MessagesPanel/UserSearchModal.jsx";
 
-import { usePresence } from "../hooks/usePresence";
-
 import {
   getCurrentUser,
   fetchConversationsForUser,
@@ -49,6 +47,9 @@ function Messages() {
 
   const typingTimeoutRef = useRef(null);
 
+  // ✅ Por ahora: presencia desactivada (para desbloquear build)
+  const presence = {};
+
   // Helpers
   const getProfileName = (profile) => {
     if (!profile) return "Creador";
@@ -81,27 +82,7 @@ function Messages() {
     );
   };
 
-  // ==================================================
-  // ✅ Presence: juntar TODOS los otherUserIds (lista + header)
-  // ==================================================
-  const otherUserIds = useMemo(() => {
-    if (!currentUser) return [];
-    const set = new Set();
-
-    for (const conv of conversations || []) {
-      const members = membersByConv[conv.id] || [];
-      for (const m of members) {
-        if (m?.id && m.id !== currentUser.id) set.add(m.id);
-      }
-    }
-    return Array.from(set);
-  }, [currentUser, conversations, membersByConv]);
-
-  const presence = usePresence(otherUserIds);
-
-  // ==================================================
   // ✅ Read receipts: marcar leído hasta el último msg de esa conv
-  // ==================================================
   const markReadUpTo = useCallback(
     async (convId, msgs = []) => {
       if (!currentUser?.id || !convId) return;
@@ -131,9 +112,7 @@ function Messages() {
     [currentUser?.id]
   );
 
-  // ==================================================
   // ✅ Reload convos (botón ↻)
-  // ==================================================
   const reloadConversations = useCallback(async () => {
     if (!currentUser?.id) return;
     try {
@@ -236,12 +215,7 @@ function Messages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConv?.id]);
 
-  // ==================================================
-  // ✅ Realtime GLOBAL: TODOS mis chats (WhatsApp feeling)
-  // - Actualiza chat abierto
-  // - Incrementa unread en chats no abiertos
-  // - Actualiza lista y la sube al tope
-  // ==================================================
+  // ✅ Realtime GLOBAL: TODOS mis chats
   const convIdsKey = useMemo(() => {
     return (conversations || [])
       .map((c) => c.id)
@@ -271,20 +245,17 @@ function Messages() {
           const activeId = selectedConvRef.current?.id;
           const isActive = activeId === convId;
 
-          // 1) Si es el chat abierto: agregar al hilo en pantalla
           if (isActive) {
             setMessagesRaw((prev) => {
               if (prev.some((m) => m.id === newMsg.id)) return prev;
               return [...prev, newMsg];
             });
 
-            // si NO es mío, lo marco leído
             if (!isMine) {
               const next = [...(messagesRef.current || []), newMsg];
               await markReadUpTo(convId, next);
             }
           } else {
-            // 2) Si NO es el chat abierto: subir unread instantáneo
             if (!isMine) {
               setUnreadByConv((prev) => ({
                 ...prev,
@@ -293,7 +264,6 @@ function Messages() {
             }
           }
 
-          // 3) Actualiza lista (último mensaje/fecha) y súbela al tope
           setConversations((prev) => {
             const list = prev || [];
             const idx = list.findIndex((c) => c.id === convId);
@@ -318,7 +288,7 @@ function Messages() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUser?.id, convIdsKey, markReadUpTo]); // ✅ sin selectedConv para evitar resuscripciones
+  }, [currentUser?.id, convIdsKey, markReadUpTo]);
 
   // ---------- Polling typing ----------
   useEffect(() => {
@@ -349,8 +319,6 @@ function Messages() {
     if (!conv?.id) return;
 
     setSelectedConv(conv);
-
-    // optimista: al entrar, unread 0; loadMsgs/markReadUpTo lo confirma
     setUnreadByConv((prev) => ({ ...prev, [conv.id]: 0 }));
   };
 
@@ -383,7 +351,6 @@ function Messages() {
       const next = [...(messagesRef.current || []), msg];
       await markReadUpTo(selectedConv.id, next);
 
-      // Empuja último mensaje inmediato + mueve al tope
       setConversations((prev) => {
         const list = prev || [];
         const idx = list.findIndex((c) => c.id === selectedConv.id);
@@ -405,13 +372,11 @@ function Messages() {
     }
   };
 
-  // ---------- Abrir modal ----------
   const handleNewConversation = () => {
     if (!currentUser) return;
     setSearchOpen(true);
   };
 
-  // ---------- Al escoger un usuario del modal ----------
   const handlePickUser = async (u) => {
     if (!currentUser || !u?.id) return;
 
@@ -439,28 +404,18 @@ function Messages() {
     }
   };
 
-  // ---------- Adaptadores: data -> UI ----------
   const uiConversations = useMemo(() => {
     const list = (conversations || []).map((c) => {
-      const members = membersByConv[c.id] || [];
-      const others = currentUser
-        ? members.filter((m) => m.id !== currentUser.id)
-        : members;
-
-      const dmOtherId = others.length === 1 ? others[0]?.id : null;
-      const dmOnline = dmOtherId ? !!presence?.[dmOtherId]?.is_online : false;
-
       return {
         id: c.id,
         title: getDisplayNameForConversation(c),
         unreadCount: unreadByConv[c.id] || 0,
         lastMessage: c.last_message ? { text: c.last_message } : { text: "" },
-        isOnline: dmOnline,
+        isOnline: false,
         _raw: c,
       };
     });
 
-    // Orden WhatsApp (más reciente arriba)
     list.sort((a, b) => {
       const ar = a?._raw || {};
       const br = b?._raw || {};
@@ -480,7 +435,7 @@ function Messages() {
     });
 
     return list;
-  }, [conversations, unreadByConv, membersByConv, currentUser, presence]);
+  }, [conversations, unreadByConv, membersByConv, currentUser]);
 
   const uiActiveConv = useMemo(() => {
     if (!selectedConv) return null;
@@ -507,14 +462,7 @@ function Messages() {
 
     const headerName = isDM ? dmName : groupTitle;
 
-    const dmOtherId = isDM ? others[0]?.id : null;
-    const dmOnline = dmOtherId ? !!presence?.[dmOtherId]?.is_online : false;
-
-    const headerSubtitle = isDM
-      ? dmOnline
-        ? "En línea"
-        : "Chat directo"
-      : `${members.length || 0} participantes`;
+    const headerSubtitle = isDM ? "Chat directo" : `${members.length || 0} participantes`;
 
     return {
       id: selectedConv.id,
@@ -524,9 +472,9 @@ function Messages() {
       headerName,
       headerAvatar: dmAvatar,
       headerSubtitle,
-      isOnline: dmOnline,
+      isOnline: false,
     };
-  }, [selectedConv, membersByConv, currentUser, typingUserIds, presence]);
+  }, [selectedConv, membersByConv, currentUser, typingUserIds]);
 
   const uiMessages = useMemo(() => {
     return (messagesRaw || []).map((m) => ({
