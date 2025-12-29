@@ -1,4 +1,4 @@
-/* Barra inferior fija */
+/* Barra inferior fija + scroll horizontal */
 .aurevi-bottombar {
   position: fixed;
   bottom: 12px;
@@ -13,30 +13,31 @@
   border-radius: 24px;
   padding: 8px 6px;
 
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-}
-
-/* CONTENEDOR DESLIZABLE */
-.aurevi-bottombar-scroll {
   display: flex;
   align-items: center;
   gap: 6px;
 
-  overflow-x: auto;
+  overflow-x: auto;      /* ✅ SCROLL AQUÍ */
   overflow-y: hidden;
+
+  -webkit-overflow-scrolling: touch; /* ✅ iOS/Android suave */
+  touch-action: pan-x;              /* ✅ permite arrastrar horizontal */
+  overscroll-behavior-x: contain;
 
   scrollbar-width: none;
   -ms-overflow-style: none;
+
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 
-.aurevi-bottombar-scroll::-webkit-scrollbar {
+.aurevi-bottombar::-webkit-scrollbar {
   display: none;
 }
 
 /* Botones */
 .nav-item {
-  flex: 0 0 auto;
-  min-width: 64px;
+  flex: 0 0 auto;   /* ✅ NO se encogen: obliga al scroll */
+  min-width: 72px;  /* ✅ fuerza que no quepan todos en vertical */
 
   display: flex;
   flex-direction: column;
@@ -44,14 +45,14 @@
   justify-content: center;
   gap: 4px;
 
-  padding: 8px 0;
-
-  background: transparent;
+  padding: 8px 10px;
   border: none;
+  background: transparent;
   cursor: pointer;
 
   color: #111;
   font-size: 12px;
+  border-radius: 18px;
 }
 
 .nav-item .icon {
@@ -65,13 +66,16 @@
     rgba(255, 120, 200, 0.9),
     rgba(120, 160, 255, 0.9)
   );
-  border-radius: 18px;
   color: #fff;
 }
 
-/* En móviles: ocultar texto */
+/* Móvil: ocultar texto */
 @media (max-width: 520px) {
   .nav-item .label {
     display: none;
+  }
+  .nav-item {
+    min-width: 64px;
+    padding: 10px 10px;
   }
 }
