@@ -1,5 +1,5 @@
 import React from "react";
-import "./BottomBar.css";
+//import "./BottomBar.css";
 
 function BottomBar({ currentScreen, navigate }) {
   const Item = ({ id, icon, label }) => {
