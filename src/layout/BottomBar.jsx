@@ -1,5 +1,4 @@
 import React from "react";
-//import "./BottomBar.css";
 
 function BottomBar({ currentScreen, navigate }) {
   const Item = ({ id, icon, label }) => {
@@ -24,12 +23,6 @@ function BottomBar({ currentScreen, navigate }) {
       <Item id="market" icon="🛒" label="Mercado" />
       <Item id="notifications" icon="🔔" label="Alertas" />
       <Item id="profile" icon="👤" label="Perfil" />
-
-      {/* 🚫 OCULTOS TEMPORALMENTE */}
-      {/*
-      <Item id="wallet" icon="🪙" label="Monedas" />
-      <Item id="messages" icon="💬" label="Mensajes" />
-      */}
     </nav>
   );
 }
