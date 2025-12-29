@@ -1,81 +1,88 @@
-/* Barra inferior fija + scroll horizontal */
-.aurevi-bottombar {
+/* src/layout/BottomBar.css */
+
+/* Barra inferior estilo "glass" */
+.aurevi-bottombar{
   position: fixed;
-  bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
+  bottom: 14px;
   z-index: 9999;
 
-  width: calc(100% - 24px);
-  max-width: 720px;
+  width: calc(100% - 20px);
+  max-width: 560px;
 
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 24px;
-  padding: 8px 6px;
+  padding: 8px;
+  border-radius: 22px;
 
+  background: rgba(18, 18, 22, 0.72);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Layout interno */
+.aurevi-bottombar{
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
-
-  overflow-x: auto;      /* ✅ SCROLL AQUÍ */
-  overflow-y: hidden;
-
-  -webkit-overflow-scrolling: touch; /* ✅ iOS/Android suave */
-  touch-action: pan-x;              /* ✅ permite arrastrar horizontal */
-  overscroll-behavior-x: contain;
-
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 
-.aurevi-bottombar::-webkit-scrollbar {
-  display: none;
-}
-
-/* Botones */
-.nav-item {
-  flex: 0 0 auto;   /* ✅ NO se encogen: obliga al scroll */
-  min-width: 72px;  /* ✅ fuerza que no quepan todos en vertical */
+/* Botón */
+.nav-item{
+  flex: 1;
+  min-width: 0;
 
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
 
-  padding: 8px 10px;
+  gap: 3px;
+  padding: 8px 0;
+
   border: none;
   background: transparent;
+  color: rgba(255,255,255,0.72);
+
+  font-size: 12px;
   cursor: pointer;
 
-  color: #111;
-  font-size: 12px;
-  border-radius: 18px;
+  border-radius: 16px;
+  transition: transform 120ms ease, background 180ms ease, color 180ms ease;
 }
 
-.nav-item .icon {
+.nav-item:active{
+  transform: scale(0.98);
+}
+
+.nav-item .icon{
   font-size: 18px;
+  line-height: 1;
+}
+
+.nav-item .label{
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.85;
 }
 
 /* Activo */
-.nav-item.active {
+.nav-item.active{
+  color: #fff;
   background: linear-gradient(
     135deg,
-    rgba(255, 120, 200, 0.9),
-    rgba(120, 160, 255, 0.9)
+    rgba(255, 0, 122, 0.40),
+    rgba(122, 0, 255, 0.35)
   );
-  color: #fff;
+  border: 1px solid rgba(255,255,255,0.14);
 }
 
-/* Móvil: ocultar texto */
-@media (max-width: 520px) {
-  .nav-item .label {
-    display: none;
-  }
-  .nav-item {
-    min-width: 64px;
-    padding: 10px 10px;
-  }
+/* En móvil: ocultar texto para que respire */
+@media (max-width: 520px){
+  .nav-item .label{ display: none; }
+  .nav-item{ padding: 9px 0; }
+  .aurevi-bottombar{ max-width: 520px; }
 }

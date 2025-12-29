@@ -11,9 +11,7 @@ function BottomBar({ currentScreen, navigate }) {
         className={`nav-item ${active ? "active" : ""}`}
         onClick={() => navigate(id)}
       >
-        <span className="icon" aria-hidden="true">
-          {icon}
-        </span>
+        <span className="icon" aria-hidden="true">{icon}</span>
         <span className="label">{label}</span>
       </button>
     );
@@ -25,12 +23,11 @@ function BottomBar({ currentScreen, navigate }) {
       <Item id="explore" icon="🔍" label="Explorar" />
       <Item id="create" icon="➕" label="Crear" />
       <Item id="market" icon="🛒" label="Mercado" />
-
-      {/* TEMPORALMENTE OCULTOS */}
+      {/* Oculto temporalmente */}
       {/* <Item id="wallet" icon="🪙" label="Monedas" /> */}
-      {/* <Item id="messages" icon="💬" label="Mensajes" /> */}
-
       <Item id="notifications" icon="🔔" label="Alertas" />
+      {/* Oculto temporalmente */}
+      {/* <Item id="messages" icon="💬" label="Mensajes" /> */}
       <Item id="profile" icon="👤" label="Perfil" />
     </nav>
   );
