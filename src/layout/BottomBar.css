@@ -1,11 +1,14 @@
 /* src/layout/BottomBar.css */
 
-/* Barra inferior estilo "glass" */
+/* Safe-area iPhone + glass bar */
 .aurevi-bottombar{
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 14px;
+
+  /* ✅ safe area: empuja la barra hacia arriba si hay "home indicator" */
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+
   z-index: 9999;
 
   width: calc(100% - 20px);
@@ -22,16 +25,44 @@
   -webkit-backdrop-filter: blur(14px);
 }
 
-/* Layout interno */
-.aurevi-bottombar{
+/* Contenedor interno: aquí vive la burbuja */
+.aurevi-bottombar-inner{
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
 }
 
-/* Botón */
+/* ✅ Burbuja animada (se desliza) */
+.active-bubble{
+  position: absolute;
+  top: 4px;
+  left: 4px;
+
+  height: calc(100% - 8px);
+  width: calc((100% - 8px) / var(--items));
+
+  border-radius: 18px;
+
+  background: linear-gradient(
+    135deg,
+    rgba(255, 0, 122, 0.40),
+    rgba(122, 0, 255, 0.35)
+  );
+  border: 1px solid rgba(255,255,255,0.14);
+
+  transform: translateX(calc(var(--active-index) * 100%));
+  transition: transform 280ms cubic-bezier(0.2, 0.9, 0.2, 1);
+
+  pointer-events: none;
+}
+
+/* Botones */
 .nav-item{
+  position: relative; /* para que quede encima de la burbuja */
+  z-index: 1;
+
   flex: 1;
   min-width: 0;
 
@@ -45,13 +76,13 @@
 
   border: none;
   background: transparent;
-  color: rgba(255,255,255,0.72);
 
+  color: rgba(255,255,255,0.72);
   font-size: 12px;
   cursor: pointer;
 
   border-radius: 16px;
-  transition: transform 120ms ease, background 180ms ease, color 180ms ease;
+  transition: transform 120ms ease, color 180ms ease;
 }
 
 .nav-item:active{
@@ -69,18 +100,12 @@
   opacity: 0.85;
 }
 
-/* Activo */
+/* Activo: texto/ícono más brillante */
 .nav-item.active{
   color: #fff;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 0, 122, 0.40),
-    rgba(122, 0, 255, 0.35)
-  );
-  border: 1px solid rgba(255,255,255,0.14);
 }
 
-/* En móvil: ocultar texto para que respire */
+/* Móvil: ocultar labels */
 @media (max-width: 520px){
   .nav-item .label{ display: none; }
   .nav-item{ padding: 9px 0; }
