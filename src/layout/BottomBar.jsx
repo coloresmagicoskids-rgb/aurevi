@@ -8,6 +8,10 @@ function BottomBar({ currentScreen, navigate }) {
       { id: "home", icon: "🏠", label: "Inicio" },
       { id: "explore", icon: "🔍", label: "Explorar" },
       { id: "create", icon: "➕", label: "Crear" },
+
+      // ✅ NUEVO: Álbum
+      { id: "album", icon: "📷", label: "Álbum" },
+
       { id: "market", icon: "🛒", label: "Mercado" },
 
       // Ocultos temporalmente
@@ -28,29 +32,39 @@ function BottomBar({ currentScreen, navigate }) {
 
   const [bubble, setBubble] = useState({ left: 4, width: 60 });
 
-  const activeIndex = Math.max(0, items.findIndex((x) => x.id === currentScreen));
+  const activeIndex = Math.max(
+    0,
+    items.findIndex((x) => x.id === currentScreen)
+  );
 
   // Calcula posición/tamaño de la burbuja según el botón activo
   const recalcBubble = () => {
     const container = scrollRef.current;
     const btn = itemRefs.current[currentScreen];
-    if (!container || !btn) return;
+
+    // ✅ Si la pantalla actual no existe en items (por ejemplo "watch"),
+    // usamos el item activo por índice como fallback para que la burbuja no se rompa.
+    const fallbackBtn =
+      activeIndex >= 0 ? itemRefs.current[items[activeIndex]?.id] : null;
+
+    const targetBtn = btn || fallbackBtn;
+    if (!container || !targetBtn) return;
 
     // offsetLeft es relativo al contenido scrolleable (perfecto)
-    const left = btn.offsetLeft + 4;
-    const width = btn.offsetWidth - 8;
+    const left = targetBtn.offsetLeft + 4;
+    const width = targetBtn.offsetWidth - 8;
 
     setBubble({ left, width });
 
     // opcional: si el item activo queda fuera de vista, lo centra
     const cLeft = container.scrollLeft;
     const cRight = cLeft + container.clientWidth;
-    const bLeft = btn.offsetLeft;
-    const bRight = bLeft + btn.offsetWidth;
+    const bLeft = targetBtn.offsetLeft;
+    const bRight = bLeft + targetBtn.offsetWidth;
 
     if (bLeft < cLeft + 12 || bRight > cRight - 12) {
       container.scrollTo({
-        left: bLeft - container.clientWidth / 2 + btn.offsetWidth / 2,
+        left: bLeft - container.clientWidth / 2 + targetBtn.offsetWidth / 2,
         behavior: "smooth",
       });
     }
@@ -87,7 +101,11 @@ function BottomBar({ currentScreen, navigate }) {
   };
 
   return (
-    <nav className="aurevi-bottombar" role="navigation" aria-label="Barra inferior">
+    <nav
+      className="aurevi-bottombar"
+      role="navigation"
+      aria-label="Barra inferior"
+    >
       <div className="aurevi-bottombar-inner">
         {/* ✅ Scroll horizontal REAL solo dentro de la barra */}
         <div className="aurevi-bottombar-scroll" ref={scrollRef}>

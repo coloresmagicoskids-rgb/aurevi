@@ -1,5 +1,5 @@
 // src/screens/Profile.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import ProfileSettingsDrawer from "../components/ProfileSettingsDrawer.jsx";
 
@@ -8,6 +8,9 @@ function Profile() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [status, setStatus] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Perfil base (meta)
+  const [profileMeta, setProfileMeta] = useState(null);
 
   // Avatar
   const [avatarUrl, setAvatarUrl] = useState(null);
@@ -28,6 +31,23 @@ function Profile() {
 
   // Drawer Ajustes
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Onboarding (completar perfil)
+  const [savingOnboarding, setSavingOnboarding] = useState(false);
+  const [onbDisplayName, setOnbDisplayName] = useState("");
+  const [onbUsername, setOnbUsername] = useState("");
+
+  const needsOnboarding = useMemo(() => {
+    // Ajusta aquí tu criterio mínimo de "perfil completo"
+    // Yo uso display_name y username (puedes quitar username si aún no lo tienes).
+    if (!user) return false;
+    if (!profileMeta) return true;
+
+    const dn = (profileMeta.display_name || "").trim();
+    const un = (profileMeta.username || "").trim();
+
+    return dn.length < 2 || un.length < 3;
+  }, [user, profileMeta]);
 
   // ─────────────────────────────────────
   // Cargar usuario + perfil + stats
@@ -68,12 +88,14 @@ function Profile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cargar avatar + campos emocionales
+  // Cargar avatar + campos emocionales + display_name/username
   const fetchProfileMeta = async (userId) => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("avatar_url, daily_mood, creative_trend, wellbeing_score")
+        .select(
+          "avatar_url, daily_mood, creative_trend, wellbeing_score, display_name, full_name, username"
+        )
         .eq("id", userId)
         .maybeSingle();
 
@@ -82,11 +104,22 @@ function Profile() {
         return;
       }
 
+      setProfileMeta(data || null);
+
       if (data?.avatar_url) setAvatarUrl(data.avatar_url);
       if (data?.daily_mood) setDailyMood(data.daily_mood);
       if (data?.creative_trend) setCreativeTrend(data.creative_trend);
       if (data?.wellbeing_score != null)
         setWellbeingScore(String(data.wellbeing_score));
+
+      // Prellenar onboarding si faltan datos
+      if (data) {
+        setOnbDisplayName(data.display_name || "");
+        setOnbUsername(data.username || "");
+      } else {
+        setOnbDisplayName("");
+        setOnbUsername("");
+      }
     } catch (err) {
       console.error("Error inesperado cargando perfil:", err);
     }
@@ -96,10 +129,7 @@ function Profile() {
   const fetchFollowStats = async (userId) => {
     try {
       // A cuántos sigo
-      const {
-        count: followingCount,
-        error: followingError,
-      } = await supabase
+      const { count: followingCount, error: followingError } = await supabase
         .from("follows")
         .select("*", { count: "exact", head: true })
         .eq("follower_id", userId);
@@ -109,10 +139,7 @@ function Profile() {
       }
 
       // Cuántos me siguen
-      const {
-        count: followersCount,
-        error: followersError,
-      } = await supabase
+      const { count: followersCount, error: followersError } = await supabase
         .from("follows")
         .select("*", { count: "exact", head: true })
         .eq("following_id", userId);
@@ -128,6 +155,61 @@ function Profile() {
     } catch (err) {
       console.error("Error inesperado en followStats:", err);
     }
+  };
+
+  // Guardar onboarding (display_name / username)
+  const handleSaveOnboarding = async () => {
+    if (!user) return;
+
+    setStatus("");
+    setErrorMsg("");
+    setSavingOnboarding(true);
+
+    const display_name = (onbDisplayName || "").trim();
+    const username = (onbUsername || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_]/g, "");
+
+    if (display_name.length < 2) {
+      setErrorMsg("El nombre público debe tener al menos 2 caracteres.");
+      setSavingOnboarding(false);
+      return;
+    }
+
+    if (username.length < 3) {
+      setErrorMsg("El username debe tener al menos 3 caracteres.");
+      setSavingOnboarding(false);
+      return;
+    }
+
+    try {
+      // Nota: si tienes UNIQUE en username, aquí te avisará si está tomado.
+      const { error } = await supabase.from("profiles").upsert({
+        id: user.id,
+        display_name,
+        username,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error("Error guardando onboarding:", error);
+        setErrorMsg(
+          error.message || "No se pudo completar tu perfil. Intenta de nuevo."
+        );
+        setSavingOnboarding(false);
+        return;
+      }
+
+      setStatus("Perfil completado ✅");
+      await fetchProfileMeta(user.id);
+    } catch (err) {
+      console.error("Error inesperado guardando onboarding:", err);
+      setErrorMsg("Ocurrió un error inesperado al completar tu perfil.");
+    }
+
+    setSavingOnboarding(false);
   };
 
   // Cambiar avatar
@@ -224,11 +306,14 @@ function Profile() {
         setErrorMsg("No se pudo cerrar sesión. Inténtalo de nuevo.");
       } else {
         setUser(null);
+        setProfileMeta(null);
         setAvatarUrl(null);
         setFollowStats({ following: 0, followers: 0 });
         setDailyMood("");
         setCreativeTrend("");
         setWellbeingScore("");
+        setOnbDisplayName("");
+        setOnbUsername("");
         setStatus("Sesión cerrada correctamente.");
       }
     } catch (err) {
@@ -289,6 +374,143 @@ function Profile() {
     );
   }
 
+  // ✅ ONBOARDING: si el perfil está incompleto, mostramos primero esto
+  if (needsOnboarding) {
+    return (
+      <>
+        <section className="aurevi-screen profile-screen">
+          <div className="profile-shell">
+            <div className="profile-side-copy">
+              <p className="profile-kicker">PERFIL AUREVI</p>
+              <h2 className="profile-hero-title">Completa tu perfil</h2>
+              <p className="profile-hero-subtitle">
+                Solo 2 datos y ya: así otros pueden encontrarte y reconocerte en
+                AUREVI.
+              </p>
+            </div>
+
+            <div className="profile-card">
+              <div className="profile-card-header">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <h3 className="profile-card-title">Tu identidad pública</h3>
+                    <p className="profile-card-subtitle">
+                      Define tu nombre visible y tu username (único).
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettingsOpen(true)}
+                    style={{
+                      border: "1px solid rgba(148,163,184,0.25)",
+                      background: "rgba(15,23,42,0.6)",
+                      color: "#e5e7eb",
+                      borderRadius: 999,
+                      padding: "6px 10px",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      whiteSpace: "nowrap",
+                      height: "fit-content",
+                    }}
+                  >
+                    ⚙️ Ajustes
+                  </button>
+                </div>
+              </div>
+
+              <div className="profile-user-info">
+                <div className="profile-avatar-circle">
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt="Avatar"
+                      className="profile-avatar-img"
+                    />
+                  ) : (
+                    <span>{user.email?.[0]?.toUpperCase() || "A"}</span>
+                  )}
+                </div>
+                <div>
+                  <div className="profile-user-label">Sesión iniciada como</div>
+                  <div className="profile-user-email">{user.email}</div>
+                </div>
+              </div>
+
+              <label className="profile-label" style={{ marginTop: 12 }}>
+                Nombre público (display_name)
+                <input
+                  className="profile-input"
+                  type="text"
+                  value={onbDisplayName}
+                  onChange={(e) => setOnbDisplayName(e.target.value)}
+                  placeholder="Ej: Carlos"
+                  disabled={savingOnboarding}
+                />
+              </label>
+
+              <label className="profile-label">
+                Username (único)
+                <input
+                  className="profile-input"
+                  type="text"
+                  value={onbUsername}
+                  onChange={(e) => setOnbUsername(e.target.value)}
+                  placeholder="Ej: carlos_polanco"
+                  disabled={savingOnboarding}
+                />
+                <div style={{ fontSize: 12, opacity: 0.8, marginTop: 6 }}>
+                  Se normaliza: minúsculas, sin espacios (se vuelven “_”).
+                </div>
+              </label>
+
+              <button
+                type="button"
+                className="aurevi-primary-btn profile-main-button"
+                onClick={handleSaveOnboarding}
+                disabled={savingOnboarding}
+              >
+                {savingOnboarding ? "Guardando..." : "Completar perfil"}
+              </button>
+
+              {status && (
+                <p className="profile-status profile-status-ok">{status}</p>
+              )}
+              {errorMsg && (
+                <p className="profile-status profile-status-error">{errorMsg}</p>
+              )}
+
+              <button
+                type="button"
+                className="aurevi-primary-btn profile-logout-btn profile-main-button"
+                onClick={handleLogout}
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <ProfileSettingsDrawer
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          user={user}
+          onNavigate={(key) => {
+            console.log("Ir a:", key);
+          }}
+        />
+      </>
+    );
+  }
+
+  // ✅ PERFIL NORMAL (tu UI original)
   return (
     <>
       <section className="aurevi-screen profile-screen">
@@ -368,6 +590,13 @@ function Profile() {
                     <strong>{followStats.followers}</strong> Seguidores
                   </span>
                 </div>
+
+                {profileMeta?.display_name && (
+                  <div style={{ marginTop: 8, opacity: 0.9 }}>
+                    <strong>{profileMeta.display_name}</strong>
+                    {profileMeta?.username ? ` · @${profileMeta.username}` : ""}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -382,7 +611,9 @@ function Profile() {
                 disabled={avatarLoading}
               />
               {avatarStatus && (
-                <p className="profile-status profile-status-ok">{avatarStatus}</p>
+                <p className="profile-status profile-status-ok">
+                  {avatarStatus}
+                </p>
               )}
             </div>
 
@@ -398,7 +629,7 @@ function Profile() {
                 style={{
                   margin: "0 0 8px",
                   fontSize: "0.95rem",
-                  color: "#111827",
+                  color: "#e5e7eb",
                 }}
               >
                 Perfil creativo–emocional
@@ -429,7 +660,9 @@ function Profile() {
                 >
                   <option value="">¿Qué tipo de creador te sientes?</option>
                   <option value="explorador">Explorador de ideas</option>
-                  <option value="constructor">Constructor/a de conocimientos</option>
+                  <option value="constructor">
+                    Constructor/a de conocimientos
+                  </option>
                   <option value="narrador">Narrador/a de historias</option>
                   <option value="musico">Músico / sonoro</option>
                   <option value="mentor">Mentor / guía</option>
@@ -463,7 +696,9 @@ function Profile() {
               </button>
             </div>
 
-            {status && <p className="profile-status profile-status-ok">{status}</p>}
+            {status && (
+              <p className="profile-status profile-status-ok">{status}</p>
+            )}
             {errorMsg && (
               <p className="profile-status profile-status-error">{errorMsg}</p>
             )}
@@ -481,13 +716,13 @@ function Profile() {
 
       {/* ✅ Drawer global (fuera del layout visual) */}
       <ProfileSettingsDrawer
-  open={settingsOpen}
-  onClose={() => setSettingsOpen(false)}
-  user={user}   // ✅ NUEVO
-  onNavigate={(key) => {
-    console.log("Ir a:", key);
-  }}
-/>
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user}
+        onNavigate={(key) => {
+          console.log("Ir a:", key);
+        }}
+      />
     </>
   );
 }

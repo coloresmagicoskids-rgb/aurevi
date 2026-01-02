@@ -5,7 +5,6 @@
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-
   bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   z-index: 9999;
 
@@ -28,7 +27,7 @@
   position: relative;
 }
 
-/* ✅ Scroll horizontal SOLO en la barra */
+/* ✅ Scroll horizontal SOLO en la barra (captura gesto) */
 .aurevi-bottombar-scroll{
   position: relative;
   display: flex;
@@ -37,17 +36,33 @@
 
   overflow-x: auto;
   overflow-y: hidden;
+
   -webkit-overflow-scrolling: touch;
 
   padding: 4px; /* espacio para burbuja */
   border-radius: 18px;
 
-  /* 🔥 Clave: gestos táctiles horizontales quedan “capturados” aquí */
+  /* 🔥 Clave: captura gesto horizontal aquí */
   touch-action: pan-x;
-  overscroll-behavior-x: contain;
+  -ms-touch-action: pan-x;
 
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  /* ✅ evita que el “rebote” se propague al body */
+  overscroll-behavior: contain;
+
+  /* ✅ scroll más "pro" */
+  scroll-behavior: smooth;
+  scroll-padding-left: 10px;
+  scroll-padding-right: 10px;
+
+  /* (Opcional) snap: se siente como iOS */
+  scroll-snap-type: x proximity;
+
+  scrollbar-width: none;     /* Firefox */
+  -ms-overflow-style: none;  /* IE/Edge viejo */
+
+  /* evita seleccionar texto/emoji al deslizar */
+  user-select: none;
+  -webkit-user-select: none;
 }
 .aurevi-bottombar-scroll::-webkit-scrollbar{
   display: none;
@@ -99,6 +114,11 @@
 
   border-radius: 16px;
   transition: transform 120ms ease, color 180ms ease;
+
+  /* snap suave por item */
+  scroll-snap-align: center;
+
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nav-item:active{
@@ -116,7 +136,7 @@
   opacity: 0.85;
 }
 
-/* Activo: texto/ícono más brillante */
+/* Activo */
 .nav-item.active{
   color: #fff;
 }

@@ -182,3 +182,13 @@ body {
   padding-bottom: 90px; /* para que la barra no tape botones/inputs */
 }
 
+/* ======================================================
+   🔧 FIX: asegurar que AuthScreen (card + toggle) reciba clicks
+   ====================================================== */
+.profile-card,
+.profile-mode-toggle,
+.profile-mode-btn {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 5;
+}

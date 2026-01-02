@@ -21,6 +21,7 @@ import MarketItemDetail from "./screens/MarketItemDetail.jsx";
 import PublishMarketItem from "./screens/PublishMarketItem.jsx";
 import Wallet from "./screens/Wallet.jsx";
 import Messages from "./screens/Messages.jsx";
+import Album from "./screens/Album.jsx";
 
 // ✅ Sesiones por dispositivo
 import {
@@ -36,9 +37,7 @@ import ChooseUsernameModal from "./components/ChooseUsernameModal";
 const withTimeout = (promise, ms = 8000, label = "timeout") =>
   Promise.race([
     promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(label)), ms)
-    ),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
   ]);
 
 function App() {
@@ -50,8 +49,11 @@ function App() {
   const { activeWorld } = useWorld();
 
   // ✅ Username gate (NO bloquea el arranque)
-  const { loading: usernameLoading, needsUsername, refresh: refreshUsernameState } =
-    useRequireUsername(user?.id);
+  const {
+    loading: usernameLoading,
+    needsUsername,
+    refresh: refreshUsernameState,
+  } = useRequireUsername(user?.id);
 
   // ==================================================
   // AUTH / USUARIO (BLINDADO: nunca se queda infinito)
@@ -61,7 +63,6 @@ function App() {
 
     const init = async () => {
       try {
-        // Si getUser se cuelga, salimos igual
         const { data } = await withTimeout(
           supabase.auth.getUser(),
           8000,
@@ -73,7 +74,6 @@ function App() {
       } catch (e) {
         console.warn("[BOOT] getUser falló o timeout:", e);
         if (!mounted) return;
-        // Importante: NO te quedas cargando por esto
         setUser(null);
       } finally {
         if (mounted) setAuthLoading(false);
@@ -82,12 +82,10 @@ function App() {
 
     init();
 
-    // Si supabase sí emite authStateChange, lo tomamos
     const { data: subscription } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (!mounted) return;
         setUser(session?.user ?? null);
-        // Si por alguna razón authLoading seguía true, lo apagamos
         setAuthLoading(false);
       }
     );
@@ -174,6 +172,8 @@ function App() {
         return <HomeFeed navigate={navigate} />;
       case "explore":
         return <Explore navigate={navigate} />;
+      case "album":
+        return <Album navigate={navigate} />;
       case "create":
         return <Create activeWorld={activeWorld} navigate={navigate} />;
       case "market":
@@ -232,9 +232,6 @@ function App() {
     );
   }
 
-  // ✅ Gate NO bloquea arranque:
-  // Si usernameLoading tarda, igual se renderiza la app,
-  // y el modal aparece cuando ya se sepa si falta username.
   const mustPickUsername = !usernameLoading && !!needsUsername;
 
   return (

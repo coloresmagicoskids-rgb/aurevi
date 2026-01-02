@@ -1,7 +1,7 @@
 // src/screens/AuthScreen.jsx
 import React, { useState } from "react";
 import { supabase } from "../supabaseClient";
-import { upsertUserSession } from "../core/sessionTracker"; // ✅ NUEVO
+import { upsertUserSession } from "../core/sessionTracker";
 
 function AuthScreen() {
   const [mode, setMode] = useState("login"); // "login" | "register"
@@ -43,7 +43,9 @@ function AuthScreen() {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
 
+  // =========================
   // REGISTRO
+  // =========================
   const handleRegister = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -68,7 +70,7 @@ function AuthScreen() {
         return;
       }
 
-      const dob = day && month && year ? `${year}-${month}-${day}` : null;
+      const birthDate = day && month && year ? `${year}-${month}-${day}` : null;
 
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -77,7 +79,7 @@ function AuthScreen() {
           data: {
             first_name: firstName,
             last_name: lastName,
-            birthdate: dob,
+            birthdate: birthDate,
             gender,
           },
         },
@@ -86,18 +88,33 @@ function AuthScreen() {
       if (error) {
         console.error("Error registrando usuario:", error);
         setErrorMsg(error.message || "No se pudo crear la cuenta.");
-      } else {
-        // Nota: dependiendo de tu config, signUp puede NO crear sesión hasta confirmar email.
-        // Por eso NO registramos sesión aquí. La registramos en login (y/o en App.jsx).
-        setStatus(
-          "Cuenta creada. Revisa tu correo si es necesario confirmar el email."
-        );
-        setMode("login");
+        setLoading(false);
+        return;
       }
 
-      // (Opcional) si en tu proyecto signUp sí crea sesión inmediata, podrías intentar:
-      // if (!error && data?.user) await upsertUserSession({ appVersion: "1.0.0" });
-      // pero por defecto lo dejamos en login para evitar inconsistencias.
+      // 🔑 SOLO si hay userId (cuando confirm email está OFF)
+      const userId = data?.user?.id;
+
+      if (userId) {
+        const { error: upErr } = await supabase
+          .from("profiles")
+          .update({
+            full_name: `${firstName} ${lastName}`.trim(),
+            display_name: (firstName || "").trim() || null,
+            gender,
+            birth_date: birthDate, // si la columna existe
+            role: "viewer",        // si la columna existe
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", userId);
+
+        if (upErr) console.warn("No se pudo completar perfil:", upErr.message);
+      }
+
+      setStatus(
+        "Cuenta creada. Revisa tu correo si es necesario confirmar el email."
+      );
+      setMode("login");
     } catch (err) {
       console.error("Error inesperado en registro:", err);
       setErrorMsg("Ocurrió un error inesperado al crear la cuenta.");
@@ -106,7 +123,9 @@ function AuthScreen() {
     setLoading(false);
   };
 
+  // =========================
   // LOGIN
+  // =========================
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -136,17 +155,17 @@ function AuthScreen() {
 
       setStatus("Sesión iniciada correctamente.");
 
-      // ✅ NUEVO: registrar sesión del dispositivo (NO debe romper el login)
+      // Registrar sesión del dispositivo sin romper login
       try {
         if (data?.user) {
           await upsertUserSession({ appVersion: "1.0.0" });
         }
       } catch (sessionErr) {
-        console.warn("No se pudo registrar user_session (se continúa igual):", sessionErr);
-        // No mostramos error al usuario para no confundir.
+        console.warn(
+          "No se pudo registrar user_session (se continúa igual):",
+          sessionErr
+        );
       }
-
-      // App.jsx se enterará por onAuthStateChange y cambiará de pantalla
     } catch (err) {
       console.error("Error inesperado en login:", err);
       setErrorMsg("Ocurrió un error inesperado al iniciar sesión.");
@@ -169,7 +188,7 @@ function AuthScreen() {
           </p>
         </div>
 
-        {/* Tarjeta principal de acceso */}
+        {/* Tarjeta principal */}
         <div className="profile-card">
           <div className="profile-card-header">
             <h3 className="profile-card-title">
@@ -221,6 +240,7 @@ function AuthScreen() {
                     onChange={handleChange("firstName")}
                   />
                 </label>
+
                 <label className="profile-label">
                   Apellidos
                   <input
@@ -236,6 +256,7 @@ function AuthScreen() {
                 <div className="profile-label-title-row">
                   <span className="profile-label-title">Fecha de nacimiento</span>
                 </div>
+
                 <div className="profile-date-row">
                   <select
                     className="profile-input"
@@ -282,6 +303,7 @@ function AuthScreen() {
                 <div className="profile-label-title-row">
                   <span className="profile-label-title">Género</span>
                 </div>
+
                 <div className="profile-gender-row">
                   {["Mujer", "Hombre", "Personalizado"].map((g) => (
                     <label key={g} className="profile-gender-option">
@@ -319,9 +341,7 @@ function AuthScreen() {
               </label>
 
               {status && <p className="profile-status profile-status-ok">{status}</p>}
-              {errorMsg && (
-                <p className="profile-status profile-status-error">{errorMsg}</p>
-              )}
+              {errorMsg && <p className="profile-status profile-status-error">{errorMsg}</p>}
 
               <button
                 className="aurevi-primary-btn profile-register-btn profile-main-button"
@@ -354,9 +374,7 @@ function AuthScreen() {
               </label>
 
               {status && <p className="profile-status profile-status-ok">{status}</p>}
-              {errorMsg && (
-                <p className="profile-status profile-status-error">{errorMsg}</p>
-              )}
+              {errorMsg && <p className="profile-status profile-status-error">{errorMsg}</p>}
 
               <button
                 className="aurevi-primary-btn profile-main-button"
