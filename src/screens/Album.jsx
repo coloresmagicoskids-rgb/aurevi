@@ -1,5 +1,5 @@
 // src/screens/Album.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 function Album() {
@@ -20,6 +20,14 @@ function Album() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
 
+  // ✅ Fullscreen API (pantalla completa real)
+  const viewerOverlayRef = useRef(null);
+  const wantsFullscreenRef = useRef(false);
+
+  // ✅ Swipe (touch)
+  const touchStartRef = useRef({ x: 0, y: 0, t: 0 });
+  const touchMovedRef = useRef(false);
+
   // ─────────────────────────────────────────────
   // Init: usuario
   // ─────────────────────────────────────────────
@@ -34,7 +42,7 @@ function Album() {
   }, []);
 
   // ─────────────────────────────────────────────
-  // Cargar fotos (públicas + mías privadas)
+  // Cargar fotos
   // ─────────────────────────────────────────────
   const loadPhotos = async () => {
     setLoading(true);
@@ -72,7 +80,7 @@ function Album() {
   // ─────────────────────────────────────────────
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // para poder subir el mismo archivo otra vez
+    e.target.value = "";
     if (!file) return;
 
     if (!user) {
@@ -188,14 +196,26 @@ function Album() {
   // ─────────────────────────────────────────────
   // ✅ Visor: abrir / cerrar / navegación
   // ─────────────────────────────────────────────
-  const openViewerAt = (index) => {
+  const openViewerAt = (index, tryFullscreen = true) => {
     if (!photos?.length) return;
     const safe = Math.max(0, Math.min(index, photos.length - 1));
     setViewerIndex(safe);
+    wantsFullscreenRef.current = !!tryFullscreen;
     setViewerOpen(true);
   };
 
-  const closeViewer = () => setViewerOpen(false);
+  const closeViewer = async () => {
+    setViewerOpen(false);
+
+    // Si está en fullscreen, salimos al cerrar
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const goPrev = () => {
     if (!photos?.length) return;
@@ -206,6 +226,16 @@ function Album() {
     if (!photos?.length) return;
     setViewerIndex((i) => (i + 1) % photos.length);
   };
+
+  // ✅ Ajustar índice si cambia el listado (ej. borraste una foto)
+  useEffect(() => {
+    if (!viewerOpen) return;
+    if (!photos?.length) {
+      setViewerOpen(false);
+      return;
+    }
+    setViewerIndex((i) => Math.max(0, Math.min(i, photos.length - 1)));
+  }, [photos.length, viewerOpen]);
 
   // Teclado: ESC / ← / →
   useEffect(() => {
@@ -218,6 +248,7 @@ function Album() {
     };
 
     window.addEventListener("keydown", onKey);
+
     // Evita scroll del body cuando el visor está abierto
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -229,8 +260,65 @@ function Album() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewerOpen, photos.length]);
 
+  // ✅ Entrar a pantalla completa real al abrir el visor (si el usuario lo inició con click)
+  useEffect(() => {
+    if (!viewerOpen) return;
+
+    const tryEnter = async () => {
+      if (!wantsFullscreenRef.current) return;
+      const el = viewerOverlayRef.current;
+      if (!el) return;
+
+      try {
+        if (!document.fullscreenElement && el.requestFullscreen) {
+          await el.requestFullscreen();
+        }
+      } catch {
+        // En algunos navegadores puede fallar si no fue gesto del usuario
+      }
+    };
+
+    // un tick para asegurar que el overlay exista
+    const id = requestAnimationFrame(tryEnter);
+    return () => cancelAnimationFrame(id);
+  }, [viewerOpen]);
+
   const activePhoto = viewerOpen ? photos[viewerIndex] : null;
   const activeUrl = activePhoto ? publicUrlFor(activePhoto.file_path) : "";
+
+  // ─────────────────────────────────────────────
+  // ✅ Swipe handlers (móvil)
+  // ─────────────────────────────────────────────
+  const onTouchStart = (e) => {
+    const t = e.touches?.[0];
+    if (!t) return;
+    touchMovedRef.current = false;
+    touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+  };
+
+  const onTouchMove = (e) => {
+    // marcamos que hubo movimiento para evitar clicks accidentales
+    touchMovedRef.current = true;
+  };
+
+  const onTouchEnd = (e) => {
+    const start = touchStartRef.current;
+    const changed = e.changedTouches?.[0];
+    if (!changed) return;
+
+    const dx = changed.clientX - start.x;
+    const dy = changed.clientY - start.y;
+    const dt = Date.now() - start.t;
+
+    // Condiciones típicas de swipe: rápido y más horizontal que vertical
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    if (dt < 600 && absX > 40 && absX > absY * 1.2) {
+      if (dx > 0) goPrev();
+      else goNext();
+    }
+  };
 
   // ─────────────────────────────────────────────
   // UI
@@ -364,7 +452,7 @@ function Album() {
               {url ? (
                 <button
                   type="button"
-                  onClick={() => openViewerAt(idx)}
+                  onClick={() => openViewerAt(idx, true)}
                   title="Ver"
                   style={{
                     padding: 0,
@@ -423,7 +511,7 @@ function Album() {
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <button
                       type="button"
-                      onClick={() => openViewerAt(idx)}
+                      onClick={() => openViewerAt(idx, true)}
                       style={{
                         fontSize: 11,
                         borderRadius: 999,
@@ -489,39 +577,45 @@ function Album() {
       </div>
 
       {/* ─────────────────────────────────────────────
-          ✅ VISOR PANTALLA COMPLETA
+          ✅ VISOR PANTALLA COMPLETA (con fullscreen + swipe)
          ───────────────────────────────────────────── */}
       {viewerOpen && (
         <div
+          ref={viewerOverlayRef}
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
-            // clic fuera del contenido = cerrar
             if (e.target === e.currentTarget) closeViewer();
           }}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
           style={{
             position: "fixed",
             inset: 0,
             zIndex: 99999,
-            background: "rgba(0,0,0,0.82)",
+            background: "rgba(0,0,0,0.92)",
             display: "grid",
             placeItems: "center",
-            padding: 14,
+            padding: 12,
+            touchAction: "pan-y", // permite scroll vertical fuera, pero swipe horizontal se detecta
           }}
         >
+          {/* Contenedor */}
           <div
             style={{
-              width: "min(980px, 100%)",
-              maxHeight: "90vh",
+              width: "min(1200px, 100%)",
+              height: "min(92vh, 900px)",
               borderRadius: 16,
               border: "1px solid rgba(148,163,184,0.18)",
               background: "rgba(2,6,23,0.92)",
               overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
+              position: "relative",
+              display: "grid",
+              gridTemplateRows: "auto 1fr auto",
             }}
           >
-            {/* Header visor */}
+            {/* Barra superior */}
             <div
               style={{
                 display: "flex",
@@ -546,9 +640,20 @@ function Album() {
               </div>
 
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {/* Fullscreen toggle */}
                 <button
                   type="button"
-                  onClick={goPrev}
+                  onClick={async () => {
+                    try {
+                      if (document.fullscreenElement) {
+                        await document.exitFullscreen();
+                      } else if (viewerOverlayRef.current?.requestFullscreen) {
+                        await viewerOverlayRef.current.requestFullscreen();
+                      }
+                    } catch {
+                      // ignore
+                    }
+                  }}
                   style={{
                     border: "1px solid rgba(148,163,184,0.25)",
                     background: "rgba(15,23,42,0.55)",
@@ -558,24 +663,9 @@ function Album() {
                     cursor: "pointer",
                     fontSize: 12,
                   }}
+                  title="Pantalla completa"
                 >
-                  ← Anterior
-                </button>
-
-                <button
-                  type="button"
-                  onClick={goNext}
-                  style={{
-                    border: "1px solid rgba(148,163,184,0.25)",
-                    background: "rgba(15,23,42,0.55)",
-                    color: "#e5e7eb",
-                    borderRadius: 10,
-                    padding: "8px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                >
-                  Siguiente →
+                  ⛶
                 </button>
 
                 <button
@@ -600,13 +690,61 @@ function Album() {
             {/* Imagen */}
             <div
               style={{
-                padding: 12,
+                position: "relative",
+                background: "rgba(0,0,0,0.25)",
                 display: "grid",
                 placeItems: "center",
-                background: "rgba(0,0,0,0.20)",
-                flex: 1,
+                padding: 12,
               }}
             >
+              {/* Botón Prev (flotante) */}
+              <button
+                type="button"
+                onClick={goPrev}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  border: "1px solid rgba(148,163,184,0.25)",
+                  background: "rgba(15,23,42,0.55)",
+                  color: "#e5e7eb",
+                  borderRadius: 999,
+                  padding: "10px 12px",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  userSelect: "none",
+                }}
+                aria-label="Anterior"
+                title="Anterior (←)"
+              >
+                ←
+              </button>
+
+              {/* Botón Next (flotante) */}
+              <button
+                type="button"
+                onClick={goNext}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  border: "1px solid rgba(148,163,184,0.25)",
+                  background: "rgba(15,23,42,0.55)",
+                  color: "#e5e7eb",
+                  borderRadius: 999,
+                  padding: "10px 12px",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  userSelect: "none",
+                }}
+                aria-label="Siguiente"
+                title="Siguiente (→)"
+              >
+                →
+              </button>
+
               {activeUrl ? (
                 <img
                   src={activeUrl}
@@ -614,12 +752,13 @@ function Album() {
                   style={{
                     width: "100%",
                     height: "100%",
-                    maxHeight: "72vh",
+                    maxHeight: "68vh",
                     objectFit: "contain",
                     borderRadius: 12,
                     border: "1px solid rgba(148,163,184,0.18)",
                     background: "rgba(0,0,0,0.25)",
                   }}
+                  draggable={false}
                 />
               ) : (
                 <div style={{ color: "#9ca3af" }}>Sin imagen</div>
@@ -627,16 +766,36 @@ function Album() {
             </div>
 
             {/* Caption */}
-            {(activePhoto?.caption || "").trim() && (
+            {(activePhoto?.caption || "").trim() ? (
               <div
                 style={{
                   padding: "10px 12px",
                   borderTop: "1px solid rgba(148,163,184,0.18)",
                   color: "#e5e7eb",
                   fontSize: 13,
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
               >
-                {activePhoto.caption}
+                <div style={{ opacity: 0.95 }}>{activePhoto.caption}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                  Swipe / ← → / Esc
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  borderTop: "1px solid rgba(148,163,184,0.18)",
+                  color: "#9ca3af",
+                  fontSize: 11,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
+                Swipe / ← → / Esc
               </div>
             )}
           </div>
