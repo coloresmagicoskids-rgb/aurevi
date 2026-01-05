@@ -5,7 +5,6 @@ import React, { useMemo } from "react";
  * LeftCreatorPanel
  * - Panel contextual para desktop/tablet.
  * - Muestra creador + badge + seguir/siguiendo.
- * - "Nada fijo": se puede ocultar con props según estado (playing/scrolling/etc).
  *
  * Props:
  * - video: objeto del post (necesita user_id, title opcional)
@@ -15,7 +14,7 @@ import React, { useMemo } from "react";
  * - isOwn: boolean
  * - onToggleFollow: (targetUserId) => void
  * - visible: boolean (default true)
- * - compact: boolean (default false) // versión más chiquita si quieres
+ * - compact: boolean (default false)
  */
 export default function LeftCreatorPanel({
   video,
@@ -63,9 +62,13 @@ export default function LeftCreatorPanel({
 
   return (
     <aside
-      className={"aurevi-sidepanel aurevi-sidepanel-left" + (compact ? " compact" : "")}
+      className={
+        "aurevi-sidepanel aurevi-sidepanel-left aurevi-left-panel" +
+        (compact ? " compact" : "")
+      }
       style={{
-        width: compact ? 220 : 260,
+        // 👇 Importante: no forzar width fijo aquí (en móvil empuja el layout).
+        // En desktop lo controlamos por CSS / grid.
         maxWidth: "28vw",
         alignSelf: "stretch",
         position: "relative",
@@ -176,16 +179,18 @@ export default function LeftCreatorPanel({
               minWidth: 140,
               opacity: !canFollow ? 0.6 : 1,
             }}
-            title={!canFollow ? "Inicia sesión para seguir" : isFollowing ? "Dejar de seguir" : "Seguir"}
+            title={
+              !canFollow
+                ? "Inicia sesión para seguir"
+                : isFollowing
+                ? "Dejar de seguir"
+                : "Seguir"
+            }
           >
             {isOwn ? "Tu perfil" : isFollowing ? "Siguiendo" : "Seguir"}
           </button>
-
-          {/* Slot contextual (opcional): por ahora vacío a propósito */}
-          {/* Aquí luego podrías meter: "Enviar mensaje", "Ver perfil", etc. */}
         </div>
 
-        {/* Nota contextual suave (opcional) */}
         {!currentUserId && (
           <div style={{ marginTop: 10, fontSize: 11, color: "#94a3b8" }}>
             Inicia sesión para seguir creadores y ajustar tu feed.

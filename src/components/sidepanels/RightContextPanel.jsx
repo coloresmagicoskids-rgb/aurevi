@@ -86,9 +86,13 @@ export default function RightContextPanel({
 
   return (
     <aside
-      className={"aurevi-sidepanel aurevi-sidepanel-right" + (compact ? " compact" : "")}
+      className={
+        "aurevi-sidepanel aurevi-sidepanel-right aurevi-right-panel" +
+        (compact ? " compact" : "")
+      }
       style={{
-        width: compact ? 260 : 300,
+        // 👇 No forzamos width fijo aquí (en móvil rompe el layout).
+        // El tamaño en desktop lo maneja el grid/CSS.
         maxWidth: "32vw",
         alignSelf: "stretch",
         position: "relative",

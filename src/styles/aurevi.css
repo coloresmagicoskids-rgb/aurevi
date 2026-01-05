@@ -181,3 +181,34 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.aurevi-post-row{
+  display: grid;
+  grid-template-columns: 260px 1fr 300px;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 900px){
+  .aurevi-post-row{
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ✅ En móvil: ocultar paneles laterales del feed */
+@media (max-width: 900px){
+  .aurevi-left-panel,
+  .aurevi-right-panel{
+    display: none !important;
+  }
+
+  .aurevi-post-row{
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 900px){
+  .aurevi-right-panel{
+    display: none !important;
+  }
+}

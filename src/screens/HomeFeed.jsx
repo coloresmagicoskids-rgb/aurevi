@@ -1062,11 +1062,11 @@ function HomeFeed() {
                   >
 				  
 				  <RightContextPanel
-                   video={video}
-                   analysis={analysisByVideo[video.id] || null}
-                   reactions={reactionsByVideo[video.id] || []}
-                   currentUserId={currentUser?.id || null}
-                  />
+  video={video}
+  analysis={analysisByVideo[video.id] || null}
+  counts={counts}
+  myReaction={myReaction}
+/>
 				  
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div
