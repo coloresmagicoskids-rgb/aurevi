@@ -1026,7 +1026,8 @@ function HomeFeed() {
                 className="aurevi-post-row"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "260px 1fr 300px",
+                  gridTemplateColumns:
+                  window.innerWidth <= 900 ? "1fr" : "260px 1fr 300px",
                   gap: 14,
                   alignItems: "start",
                 }}
@@ -1059,6 +1060,14 @@ function HomeFeed() {
                       marginBottom: 8,
                     }}
                   >
+				  
+				  <RightContextPanel
+                   video={video}
+                   analysis={analysisByVideo[video.id] || null}
+                   reactions={reactionsByVideo[video.id] || []}
+                   currentUserId={currentUser?.id || null}
+                  />
+				  
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div
                         style={{

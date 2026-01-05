@@ -8,12 +8,23 @@
   box-sizing: border-box;
 }
 
+/* ✅ FIX: evita scroll horizontal fantasma (mobile / grid) */
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   padding: 0;
   background: #0d0d0d;
   color: white;
   font-family: Arial, sans-serif;
+}
+
+/* ✅ FIX extra: solo en HomeFeed, por si algún hijo empuja */
+.aurevi-home-screen {
+  overflow-x: hidden;
 }
 
 .aurevi-app {
@@ -59,10 +70,6 @@ body {
 
   /* ✅ reserva espacio para que el contenido no quede debajo de la barra */
   padding-bottom: calc(var(--bottom-bar-h) + 24px);
-}
-
-.aurevi-main{
-  padding-bottom: 90px;
 }
 
 /* ======================================================
@@ -142,41 +149,6 @@ body {
   }
 }
 
-/* Barra inferior: que siempre quepa en móvil */
-.aurevi-bottom-bar{
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-
-  width: calc(100% - 24px);
-  max-width: 720px;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 10px 10px;
-  gap: 6px;
-
-  border-radius: 22px;
-  overflow: hidden;
-  z-index: 9999;
-}
-
-/* Cada botón ocupa un espacio igual */
-.aurevi-bottom-bar .aurevi-bottom-item{
-  flex: 1;
-  min-width: 0;
-}
-
-/* En móvil: esconder texto */
-@media (max-width: 420px){
-  .aurevi-bottom-bar .label{
-    display: none;
-  }
-}
-
 .aurevi-main,
 .aurevi-screen {
   padding-bottom: 90px; /* para que la barra no tape botones/inputs */
@@ -191,4 +163,21 @@ body {
   pointer-events: auto !important;
   position: relative;
   z-index: 5;
+}
+
+/* ======================================================
+   ✅ Layout Feed: 3 columnas (left / main / right)
+   ====================================================== */
+.aurevi-post-row {
+  display: grid;
+  grid-template-columns: 260px 1fr 300px;
+  gap: 14px;
+  align-items: start;
+}
+
+/* ✅ En tablet/móvil: una sola columna (evita el “espacio negro” lateral) */
+@media (max-width: 900px) {
+  .aurevi-post-row {
+    grid-template-columns: 1fr;
+  }
 }
