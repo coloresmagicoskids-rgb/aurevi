@@ -237,23 +237,40 @@ export default function RightContextPanel({
               </div>
             )}
 
-            <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {/* ✅ AHORA HORIZONTAL (chips) + scroll si no caben */}
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                gap: 8,
+                flexWrap: "nowrap", // ✅ horizontal
+                overflowX: "auto", // ✅ scroll en móvil si hace falta
+                paddingBottom: 6,
+                WebkitOverflowScrolling: "touch",
+              }}
+            >
               {reactionMeta.order.map((r) => {
                 const n = Number(counts?.[r.key] || 0);
                 return (
                   <span
                     key={r.key}
                     style={{
+                      flex: "0 0 auto",
+                      whiteSpace: "nowrap",
                       fontSize: 11,
-                      padding: "6px 10px",
+                      padding: "8px 12px",
                       borderRadius: 999,
                       background: "rgba(15,23,42,0.75)",
                       border: "1px solid rgba(148,163,184,0.16)",
                       color: "#e5e7eb",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
                     }}
                     title={`${r.label}: ${n}`}
                   >
-                    {r.emoji} {n}
+                    <span style={{ opacity: 0.95 }}>{r.emoji}</span>
+                    <strong style={{ fontWeight: 800 }}>{n}</strong>
                   </span>
                 );
               })}
