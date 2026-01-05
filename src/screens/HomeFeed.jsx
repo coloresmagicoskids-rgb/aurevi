@@ -1,11 +1,13 @@
 // src/screens/HomeFeed.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import CommentsPanel from "../components/CommentsPanel";
 import VideoReactions from "../components/VideoReactions";
 import { useWorld } from "../worlds/WorldContext";
 import { WORLD_LABELS } from "../worlds/worldTypes";
 import AdCard from "../components/ads/AdCard.jsx";
+import LeftCreatorPanel from "../components/sidepanels/LeftCreatorPanel.jsx";
+import RightContextPanel from "../components/sidepanels/RightContextPanel.jsx";
 
 function HomeFeed() {
   const { activeWorld } = useWorld();
@@ -44,19 +46,137 @@ function HomeFeed() {
   const [topReaction, setTopReaction] = useState(null);
 
   // ----------------------------------------------------
-  // ✅ Anuncios (MVP)
+  // ✅ Anuncios (MVP “no invasivo”)
   // ----------------------------------------------------
-  const AD_EVERY = 6; // 🔁 cambia esto si quieres (ej: 8, 10, etc.)
+  const ADS_EVERY = 7; // intenta 7–10 para que se sienta natural
+  const MAX_ADS_PER_SESSION = 2; // límite duro por sesión
+  const MIN_POSTS_BETWEEN_ADS = 6; // nunca muy pegados
 
-  const firstAd = {
-  id: "ad-001",
-  badge: "🤝 Apoyo creativo",
-  title: "Edita más rápido tus videos",
-  text: "Plantillas, cortes inteligentes y transiciones listas para creadores. Sin complicarte.",
-  imageUrl: "/ads/ad-001.png",   // ✅ aquí
-  ctaLabel: "Conocer",
-  href: "https://example.com",
-};
+  // Pool de anuncios (puedes añadir más)
+  const adsPool = useMemo(
+    () => [
+      {
+        id: "ad-001",
+        badge: "🤝 Apoyo creativo",
+        title: "Edita más rápido tus videos",
+        text: "Plantillas, cortes inteligentes y transiciones listas para creadores. Sin complicarte.",
+        imageUrl: "/ads/ad-001.png",
+        ctaLabel: "Conocer",
+        href: "https://example.com",
+        placement: "home",
+        theme: "soft",
+      },
+    ],
+    []
+  );
+
+  // Estado de sesión de anuncios
+  const [adsShownCount, setAdsShownCount] = useState(0);
+  const [adIndexCursor, setAdIndexCursor] = useState(0);
+  const lastAdPostIndexRef = useRef(-999); // última posición donde se insertó un ad
+
+  // Reset “sesión” cuando cambias de mundo / modo (sensación justa)
+  useEffect(() => {
+    setAdsShownCount(0);
+    setAdIndexCursor(0);
+    lastAdPostIndexRef.current = -999;
+  }, [activeWorld, feedMode, moodFilterMode]);
+
+  const pickNextAd = () => {
+    if (!adsPool.length) return null;
+    const ad = adsPool[adIndexCursor % adsPool.length];
+    return ad || null;
+  };
+
+  const advanceAdCursor = () => {
+    setAdIndexCursor((x) => (x + 1) % Math.max(adsPool.length, 1));
+  };
+
+  const shouldInsertAdAfterIndex = (idx, totalPosts) => {
+    // Reglas:
+    // 1) Límite por sesión
+    if (adsShownCount >= MAX_ADS_PER_SESSION) return false;
+
+    // 2) Necesitamos pool
+    if (!adsPool.length) return false;
+
+    // 3) No poner si quedan muy pocos posts (evita “ad al final”)
+    if (totalPosts <= 4) return false;
+
+    // 4) Regla base: cada ADS_EVERY posts
+    const baseHit = (idx + 1) % ADS_EVERY === 0;
+    if (!baseHit) return false;
+
+    // 5) Nunca demasiado cerca del último ad
+    const postsSinceLastAd = idx - lastAdPostIndexRef.current;
+    if (postsSinceLastAd < MIN_POSTS_BETWEEN_ADS) return false;
+
+    return true;
+  };
+
+  // ----------------------------------------------------
+  // ✅ TRACKING REAL (Supabase) — session_id + dedupe
+  // ----------------------------------------------------
+
+  // ✅ Session id (persiste en esta pestaña)
+  const sessionIdRef = useRef(null);
+  useEffect(() => {
+    const key = "aurevi_session_id";
+    let sid = sessionStorage.getItem(key);
+    if (!sid) {
+      sid =
+        crypto?.randomUUID?.() ||
+        String(Date.now()) + "-" + Math.random().toString(16).slice(2);
+      sessionStorage.setItem(key, sid);
+    }
+    sessionIdRef.current = sid;
+  }, []);
+
+  // ✅ Anti-duplicados (React StrictMode puede disparar effects 2 veces en dev)
+  const sentEventsRef = useRef(new Set());
+
+  const trackAdEvent = async (eventType, ad, extraMeta = {}) => {
+    try {
+      // Solo logueados (por RLS)
+      if (!currentUser?.id) return;
+      if (!ad?.id) return;
+
+      const sid = sessionIdRef.current || "no-session";
+
+      // Dedup key
+      const dedupKey = `${eventType}:${ad.id}:${sid}:${ad.placement || "home"}`;
+      if (eventType === "impression") {
+        // 1 impresión por ad por sesión/placement
+        if (sentEventsRef.current.has(dedupKey)) return;
+        sentEventsRef.current.add(dedupKey);
+      }
+
+      const payload = {
+        user_id: currentUser.id,
+        session_id: sid,
+        ad_id: ad.id,
+        placement: ad.placement || "home",
+        event_type: eventType,
+
+        // 👉 columnas reales (mejor para métricas)
+        world_type: activeWorld,
+        feed_mode: feedMode,
+        mood_filter_mode: moodFilterMode,
+
+        // 👉 meta flexible (extra / futuro)
+        meta: {
+          href: ad.href || null,
+          theme: ad.theme || null,
+          ...extraMeta,
+        },
+      };
+
+      const { error } = await supabase.from("ad_events").insert(payload);
+      if (error) console.error("ad_events insert error:", error);
+    } catch (e) {
+      console.error("trackAdEvent error:", e);
+    }
+  };
 
   // ----------------------------------------------------
   // Helper: mapear mood del usuario a categorías sugeridas
@@ -233,7 +353,7 @@ function HomeFeed() {
 
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, avatar_url, creative_trend")
+        .select("id, avatar_url, creative_trend, display_name, username")
         .in("id", userIds);
 
       if (profilesError) {
@@ -865,7 +985,6 @@ function HomeFeed() {
       </div>
 
       {loading && <p className="aurevi-home-status">Consultando videos...</p>}
-
       {errorMsg && <p className="aurevi-home-status aurevi-home-status-error">{errorMsg}</p>}
 
       {!loading && filteredVideos.length === 0 && (
@@ -897,261 +1016,321 @@ function HomeFeed() {
             ? listReactions.find((r) => r.user_id === currentUser.id)?.reaction || null
             : null;
 
+          const showAdHere = shouldInsertAdAfterIndex(idx, filteredVideos.length);
+          const adToShow = showAdHere ? pickNextAd() : null;
+
           return (
             <React.Fragment key={video.id}>
-              {/* ✅ Post normal */}
-              <article className="aurevi-feed-card">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    marginBottom: 8,
+              {/* ✅ Post normal (AHORA con panel izquierdo + panel derecho) */}
+              <div
+                className="aurevi-post-row"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "260px 1fr 300px",
+                  gap: 14,
+                  alignItems: "start",
+                }}
+              >
+                {/* 👈 Panel izquierdo */}
+                <LeftCreatorPanel
+                  video={video}
+                  creator={{
+                    id: video.user_id,
+                    avatar_url: creator?.avatar_url,
+                    creative_trend: creator?.creative_trend,
+                    display_name: creator?.display_name,
+                    username: creator?.username,
                   }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: "999px",
-                        background:
-                          "radial-gradient(circle at 30% 20%, #f97316, #4f46e5 55%, #020617)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        overflow: "hidden",
-                        flexShrink: 0,
-                        fontSize: 14,
-                        color: "#f9fafb",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {creator?.avatar_url ? (
-                        <img
-                          src={creator.avatar_url}
-                          alt="Avatar creador"
-                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        />
-                      ) : (
-                        <span>
-                          {video.title?.[0]?.toUpperCase() ||
-                            currentUser?.email?.[0]?.toUpperCase() ||
-                            "A"}
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <h3 className="aurevi-feed-title" style={{ margin: 0, fontSize: "0.98rem" }}>
-                        {video.title || "Video sin título"}
-                      </h3>
-
-                      {creatorTrend && (
-                        <span
-                          style={{
-                            display: "inline-block",
-                            marginTop: 2,
-                            fontSize: 11,
-                            padding: "2px 8px",
-                            borderRadius: 999,
-                            background: "rgba(15,23,42,0.9)",
-                            color: "#e5e7eb",
-                          }}
-                        >
-                          {{
-                            explorador: "Explorador de ideas",
-                            constructor: "Constructor/a de conocimientos",
-                            narrador: "Narrador/a",
-                            musico: "Músico / sonoro",
-                            mentor: "Mentor / guía",
-                            multicreativo: "Multicreativo",
-                          }[creatorTrend] || creatorTrend}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {currentUser && !isOwn && video.user_id && (
-                    <button
-                      type="button"
-                      onClick={() => handleToggleFollow(video.user_id)}
-                      style={{
-                        borderRadius: 999,
-                        border: "none",
-                        padding: "6px 14px",
-                        fontSize: 13,
-                        cursor: "pointer",
-                        background: isFollowing ? "#1f2937" : "#4b5563",
-                        color: "#fff",
-                      }}
-                    >
-                      {isFollowing ? "Siguiendo" : "Seguir"}
-                    </button>
-                  )}
-                </div>
-
-                <video
-                  src={video.video_url}
-                  controls
-                  className="aurevi-video-player"
-                  onPlay={() => handleView(video.id)}
+                  currentUserId={currentUser?.id || null}
+                  isFollowing={isFollowing}
+                  isOwn={isOwn}
+                  onToggleFollow={handleToggleFollow}
+                  visible={true}
                 />
 
-                {video.description && <p className="aurevi-feed-description">{video.description}</p>}
-
-                {analysis && (
+                {/* 🎥 Post principal (TU CÓDIGO ORIGINAL, intacto) */}
+                <article className="aurevi-feed-card">
                   <div
                     style={{
-                      marginTop: 6,
-                      padding: 8,
-                      borderRadius: 12,
-                      background: "rgba(15,23,42,0.95)",
-                      border: "1px solid rgba(148,163,184,0.45)",
-                      fontSize: 11,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      marginBottom: 8,
                     }}
                   >
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
-                      <span
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div
                         style={{
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          background: "rgba(30,64,175,0.9)",
-                          color: "#e5e7eb",
+                          width: 40,
+                          height: 40,
+                          borderRadius: "999px",
+                          background:
+                            "radial-gradient(circle at 30% 20%, #f97316, #4f46e5 55%, #020617)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                          flexShrink: 0,
+                          fontSize: 14,
+                          color: "#f9fafb",
+                          fontWeight: 600,
                         }}
                       >
-                        Clima IA: {renderMoodLabel(analysis.mood_detected)}
-                      </span>
-                      {analysis.emotion && (
+                        {creator?.avatar_url ? (
+                          <img
+                            src={creator.avatar_url}
+                            alt="Avatar creador"
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        ) : (
+                          <span>
+                            {video.title?.[0]?.toUpperCase() ||
+                              currentUser?.email?.[0]?.toUpperCase() ||
+                              "A"}
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <h3 className="aurevi-feed-title" style={{ margin: 0, fontSize: "0.98rem" }}>
+                          {video.title || "Video sin título"}
+                        </h3>
+
+                        {creatorTrend && (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              marginTop: 2,
+                              fontSize: 11,
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              background: "rgba(15,23,42,0.9)",
+                              color: "#e5e7eb",
+                            }}
+                          >
+                            {{
+                              explorador: "Explorador de ideas",
+                              constructor: "Constructor/a de conocimientos",
+                              narrador: "Narrador/a",
+                              musico: "Músico / sonoro",
+                              mentor: "Mentor / guía",
+                              multicreativo: "Multicreativo",
+                            }[creatorTrend] || creatorTrend}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {currentUser && !isOwn && video.user_id && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFollow(video.user_id)}
+                        style={{
+                          borderRadius: 999,
+                          border: "none",
+                          padding: "6px 14px",
+                          fontSize: 13,
+                          cursor: "pointer",
+                          background: isFollowing ? "#1f2937" : "#4b5563",
+                          color: "#fff",
+                        }}
+                      >
+                        {isFollowing ? "Siguiendo" : "Seguir"}
+                      </button>
+                    )}
+                  </div>
+
+                  <video
+                    src={video.video_url}
+                    controls
+                    className="aurevi-video-player"
+                    onPlay={() => handleView(video.id)}
+                  />
+
+                  {video.description && (
+                    <p className="aurevi-feed-description">{video.description}</p>
+                  )}
+
+                  {analysis && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        padding: 8,
+                        borderRadius: 12,
+                        background: "rgba(15,23,42,0.95)",
+                        border: "1px solid rgba(148,163,184,0.45)",
+                        fontSize: 11,
+                      }}
+                    >
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
                         <span
                           style={{
                             padding: "2px 8px",
                             borderRadius: 999,
-                            background: "rgba(15,23,42,0.9)",
+                            background: "rgba(30,64,175,0.9)",
                             color: "#e5e7eb",
                           }}
                         >
-                          Emoción: {analysis.emotion}
+                          Clima IA: {renderMoodLabel(analysis.mood_detected)}
                         </span>
-                      )}
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit,minmax(90px,1fr))",
-                        gap: 6,
-                      }}
-                    >
-                      <div>
-                        <div>Claridad</div>
-                        <div style={{ color: "#9ca3af" }}>{analysis.clarity ?? "—"}/5</div>
-                        {renderScoreBar(analysis.clarity)}
+                        {analysis.emotion && (
+                          <span
+                            style={{
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              background: "rgba(15,23,42,0.9)",
+                              color: "#e5e7eb",
+                            }}
+                          >
+                            Emoción: {analysis.emotion}
+                          </span>
+                        )}
                       </div>
-                      <div>
-                        <div>Narrativa</div>
-                        <div style={{ color: "#9ca3af" }}>
-                          {analysis.narrative_quality ?? "—"}/5
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit,minmax(90px,1fr))",
+                          gap: 6,
+                        }}
+                      >
+                        <div>
+                          <div>Claridad</div>
+                          <div style={{ color: "#9ca3af" }}>{analysis.clarity ?? "—"}/5</div>
+                          {renderScoreBar(analysis.clarity)}
                         </div>
-                        {renderScoreBar(analysis.narrative_quality)}
-                      </div>
-                      <div>
-                        <div>Creatividad</div>
-                        <div style={{ color: "#9ca3af" }}>
-                          {analysis.creativity_score ?? "—"}/5
+                        <div>
+                          <div>Narrativa</div>
+                          <div style={{ color: "#9ca3af" }}>
+                            {analysis.narrative_quality ?? "—"}/5
+                          </div>
+                          {renderScoreBar(analysis.narrative_quality)}
                         </div>
-                        {renderScoreBar(analysis.creativity_score)}
+                        <div>
+                          <div>Creatividad</div>
+                          <div style={{ color: "#9ca3af" }}>
+                            {analysis.creativity_score ?? "—"}/5
+                          </div>
+                          {renderScoreBar(analysis.creativity_score)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <VideoReactions
-                  videoId={video.id}
-                  userReaction={myReaction}
-                  counts={counts}
-                  onReact={(reactionKey) => handleReaction(video.id, reactionKey)}
-                />
+                  <VideoReactions
+                    videoId={video.id}
+                    userReaction={myReaction}
+                    counts={counts}
+                    onReact={(reactionKey) => handleReaction(video.id, reactionKey)}
+                  />
 
-                <div
-                  style={{
-                    marginTop: 8,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleLike(video.id)}
+                  <div
                     style={{
-                      border: "none",
-                      borderRadius: 20,
-                      padding: "6px 14px",
-                      cursor: "pointer",
-                      fontSize: 14,
-                      background: "linear-gradient(90deg, #ff7aa2, #ffb347, #ffd452)",
+                      marginTop: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
                     }}
                   >
-                    ❤️ Me gusta
-                  </button>
-
-                  <span style={{ fontSize: 14, opacity: 0.9 }}>{video.likes ?? 0} me gusta</span>
-                  <span style={{ fontSize: 14, opacity: 0.9 }}>👁️ {video.views ?? 0} vistas</span>
-
-                  <button
-                    type="button"
-                    onClick={() => handleShare(video)}
-                    style={{
-                      border: "none",
-                      borderRadius: 20,
-                      padding: "6px 14px",
-                      cursor: "pointer",
-                      fontSize: 14,
-                      background: "#111827",
-                      color: "#e5e7eb",
-                    }}
-                  >
-                    🔗 Compartir
-                  </button>
-                </div>
-
-                {/* ✅ Eliminar solo si es propio */}
-                {isOwn && (
-                  <div style={{ marginTop: 10 }}>
                     <button
                       type="button"
-                      onClick={() => handleDelete(video.id)}
+                      onClick={() => handleLike(video.id)}
                       style={{
                         border: "none",
                         borderRadius: 20,
                         padding: "6px 14px",
                         cursor: "pointer",
                         fontSize: 14,
-                        background: "#ef4444",
-                        color: "#fff",
+                        background: "linear-gradient(90deg, #ff7aa2, #ffb347, #ffd452)",
                       }}
                     >
-                      🗑️ Eliminar video
+                      ❤️ Me gusta
+                    </button>
+
+                    <span style={{ fontSize: 14, opacity: 0.9 }}>{video.likes ?? 0} me gusta</span>
+                    <span style={{ fontSize: 14, opacity: 0.9 }}>👁️ {video.views ?? 0} vistas</span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleShare(video)}
+                      style={{
+                        border: "none",
+                        borderRadius: 20,
+                        padding: "6px 14px",
+                        cursor: "pointer",
+                        fontSize: 14,
+                        background: "#111827",
+                        color: "#e5e7eb",
+                      }}
+                    >
+                      🔗 Compartir
                     </button>
                   </div>
-                )}
 
-                <div style={{ marginTop: 12 }}>
-                  <CommentsPanel videoId={video.id} />
-                </div>
-              </article>
+                  {/* ✅ Eliminar solo si es propio */}
+                  {isOwn && (
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(video.id)}
+                        style={{
+                          border: "none",
+                          borderRadius: 20,
+                          padding: "6px 14px",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          background: "#ef4444",
+                          color: "#fff",
+                        }}
+                      >
+                        🗑️ Eliminar video
+                      </button>
+                    </div>
+                  )}
 
-              {/* ✅ Anuncio nativo cada N posts */}
-              {(idx + 1) % AD_EVERY === 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <CommentsPanel videoId={video.id} />
+                  </div>
+                </article>
+
+                {/* 👉 Panel derecho (TERCERA COLUMNA) */}
+                <RightContextPanel
+                  video={video}
+                  creator={creator}
+                  analysis={analysis}
+                  counts={counts}
+                  myReaction={myReaction}
+                  visible={true}
+                />
+              </div>
+
+              {/* ✅ Anuncio nativo (con reglas) */}
+              {adToShow && (
                 <div style={{ margin: "12px 0" }}>
                   <AdCard
-                    ad={firstAd}
-                    onClick={(ad) => console.log("[ad click]", ad?.id)}
+                    ad={adToShow}
+                    onClick={(ad) => {
+                      console.log("[ad click]", ad?.id, ad?.placement);
+                      trackAdEvent("click", ad, { source: "cta" }); // ✅ CLICK
+                    }}
                   />
                 </div>
+              )}
+
+              {/* ✅ Marcamos que se mostró el ad */}
+              {adToShow && (
+                <AdShownSideEffect
+                  onShown={() => {
+                    trackAdEvent("impression", adToShow); // ✅ IMPRESIÓN
+
+                    // registra para reglas
+                    lastAdPostIndexRef.current = idx;
+                    setAdsShownCount((n) => n + 1);
+                    advanceAdCursor();
+                  }}
+                />
               )}
             </React.Fragment>
           );
@@ -1159,6 +1338,18 @@ function HomeFeed() {
       </div>
     </section>
   );
+}
+
+/**
+ * Componente invisible para ejecutar side-effect
+ * sin romper el render loop (y sin useEffect dentro del map).
+ */
+function AdShownSideEffect({ onShown }) {
+  useEffect(() => {
+    onShown?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
 }
 
 export default HomeFeed;

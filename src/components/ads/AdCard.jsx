@@ -1,31 +1,117 @@
 // src/components/ads/AdCard.jsx
-import React from "react";
+import React, { useMemo } from "react";
 
 /**
- * Anuncio nativo estilo “post”.
+ * AUREVI — AdCard oficial (v1)
+ * ------------------------------------------------------------
+ * Anuncio nativo estilo “post” (no invasivo).
+ *
  * Props:
- * - ad: { id, badge, title, text, imageUrl, ctaLabel, href }
- * - onClick: opcional (tracking)
+ * - ad: objeto del anuncio
+ *   Campos soportados (opcionales):
+ *   {
+ *     id,
+ *     badge,          // texto del badge
+ *     title,          // titulo
+ *     text,           // descripcion corta
+ *     imageUrl,       // imagen (si no hay, muestra placeholder)
+ *     mediaType,      // "image" | "video" (v1: renderiza image; video se ignora por ahora)
+ *     ctaLabel,       // texto boton
+ *     href,           // URL externa
+ *     target,         // "_blank" | "_self" (por defecto _blank)
+ *     placement,      // "home" | "explore" | "album" etc (solo para tracking)
+ *     sponsorName,    // marca/creador
+ *     sponsorType,    // "creator" | "brand" | "aurevi"
+ *     theme,          // "soft" | "strong" (v1: solo cambia sutiles)
+ *     internalRoute,  // ruta interna de la app (si usas navigate)
+ *   }
+ *
+ * - onClick(ad, meta): callback opcional para tracking
+ * - navigate(route, params?): opcional (para abrir rutas internas en tu app)
+ *
+ * Nota:
+ * - Este componente NO decide frecuencia.
+ * - Frecuencia y selección de anuncios se hace en el feed (HomeFeed/Explore).
  */
-export default function AdCard({ ad, onClick }) {
+
+export default function AdCard({ ad, onClick, navigate }) {
   if (!ad) return null;
 
-  const {
-    badge = "🤝 Apoyo creativo",
-    title = "Edita más rápido tus videos",
-    text = "Plantillas y transiciones listas para creadores. Sin complicarte.",
-    imageUrl = "",
-    ctaLabel = "Conocer",
-    href = "#",
-  } = ad;
+  const safeAd = useMemo(() => {
+    const {
+      id = "ad_unknown",
+      badge = "🤝 Patrocinado",
+      title = "Descubre algo útil en AUREVI",
+      text = "Apoya a creadores, cursos y productos sin interrumpir tu experiencia.",
+      imageUrl = "",
+      mediaType = "image",
+      ctaLabel = "Ver",
+      href = "",
+      target = "_blank",
+      placement = "",
+      sponsorName = "",
+      sponsorType = "",
+      theme = "soft",
+      internalRoute = "",
+    } = ad || {};
+
+    return {
+      id,
+      badge,
+      title,
+      text,
+      imageUrl,
+      mediaType,
+      ctaLabel,
+      href,
+      target,
+      placement,
+      sponsorName,
+      sponsorType,
+      theme,
+      internalRoute,
+    };
+  }, [ad]);
 
   const handleClick = () => {
+    // Tracking seguro (no rompe)
     try {
-      onClick?.(ad);
+      onClick?.(safeAd, {
+        ts: Date.now(),
+        placement: safeAd.placement || "unknown",
+      });
     } catch {}
-    // Abrir enlace (nueva pestaña)
-    if (href && href !== "#") window.open(href, "_blank", "noopener,noreferrer");
+
+    // 1) Ruta interna (si existe navigate + internalRoute)
+    if (navigate && safeAd.internalRoute) {
+      try {
+        navigate(safeAd.internalRoute);
+        return;
+      } catch {}
+    }
+
+    // 2) URL externa
+    if (safeAd.href) {
+      try {
+        window.open(
+          safeAd.href,
+          safeAd.target || "_blank",
+          "noopener,noreferrer"
+        );
+      } catch {}
+    }
   };
+
+  // Estilos “soft vs strong” (muy sutil, sin ser invasivo)
+  const cardBg =
+    safeAd.theme === "strong"
+      ? "rgba(10, 16, 32, 0.42)"
+      : "rgba(10, 16, 32, 0.28)";
+
+  const headerHint =
+    safeAd.sponsorName || safeAd.sponsorType
+      ? `Por ${safeAd.sponsorName || "patrocinador"}`
+      : "Ayuda a mantener AUREVI gratis";
 
   return (
     <article
@@ -34,76 +120,138 @@ export default function AdCard({ ad, onClick }) {
       aria-label="Contenido patrocinado"
       style={{
         border: "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(10, 16, 32, 0.28)",
+        background: cardBg,
         borderRadius: 18,
         overflow: "hidden",
         backdropFilter: "blur(10px)",
       }}
     >
       {/* Header */}
-      <div style={{ padding: 14, display: "flex", alignItems: "center", gap: 10 }}>
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 800,
-            padding: "6px 10px",
-            borderRadius: 999,
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            color: "rgba(255,255,255,0.85)",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {badge}
-        </span>
+      <div
+        style={{
+          padding: 14,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              padding: "6px 10px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "rgba(255,255,255,0.85)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {safeAd.badge}
+          </span>
 
-        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-          Ayuda a mantener AUREVI gratis
-        </span>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+            {headerHint}
+          </span>
+        </div>
+
+        {/* micro-info de ubicación (opcional, útil para debug/analytics) */}
+        {!!safeAd.placement && (
+          <span
+            style={{
+              fontSize: 11,
+              color: "rgba(255,255,255,0.30)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              padding: "4px 8px",
+              borderRadius: 999,
+              whiteSpace: "nowrap",
+            }}
+            title="placement"
+          >
+            {safeAd.placement}
+          </span>
+        )}
       </div>
 
       {/* Media */}
-      {imageUrl ? (
-        <div
+      {safeAd.imageUrl ? (
+        <button
+          type="button"
+          onClick={handleClick}
+          title="Abrir"
           style={{
+            padding: 0,
+            border: "none",
+            background: "transparent",
             width: "100%",
-            aspectRatio: "16/9",
-            background: "rgba(255,255,255,0.06)",
+            cursor: "pointer",
+            display: "block",
           }}
         >
-          <img
-            src={imageUrl}
-            alt={title}
+          <div
             style={{
               width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
+              aspectRatio: "16/9",
+              background: "rgba(255,255,255,0.06)",
             }}
-            loading="lazy"
-          />
-        </div>
+          >
+            <img
+              src={safeAd.imageUrl}
+              alt={safeAd.title}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+              loading="lazy"
+            />
+          </div>
+        </button>
       ) : (
-        <div
+        <button
+          type="button"
+          onClick={handleClick}
+          title="Abrir"
           style={{
+            padding: 0,
+            border: "none",
+            background: "transparent",
             width: "100%",
-            aspectRatio: "16/9",
-            background:
-              "radial-gradient(circle at 30% 30%, rgba(255,0,122,0.20), rgba(122,0,255,0.16), rgba(0,0,0,0.0))",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            cursor: "pointer",
+            display: "block",
           }}
-        />
+        >
+          <div
+            style={{
+              width: "100%",
+              aspectRatio: "16/9",
+              background:
+                "radial-gradient(circle at 30% 30%, rgba(255,0,122,0.20), rgba(122,0,255,0.16), rgba(0,0,0,0.0))",
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+            }}
+          />
+        </button>
       )}
 
       {/* Body */}
       <div style={{ padding: 14 }}>
         <div style={{ fontWeight: 900, fontSize: 16, color: "white" }}>
-          {title}
+          {safeAd.title}
         </div>
 
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.72)" }}>
-          {text}
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 13,
+            color: "rgba(255,255,255,0.72)",
+            lineHeight: 1.35,
+          }}
+        >
+          {safeAd.text}
         </div>
 
         <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
@@ -121,7 +269,7 @@ export default function AdCard({ ad, onClick }) {
               cursor: "pointer",
             }}
           >
-            {ctaLabel}
+            {safeAd.ctaLabel}
           </button>
         </div>
       </div>
