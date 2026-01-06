@@ -8,6 +8,7 @@ import { WORLD_LABELS } from "../worlds/worldTypes";
 import AdCard from "../components/ads/AdCard.jsx";
 import LeftCreatorPanel from "../components/sidepanels/LeftCreatorPanel.jsx";
 import RightContextPanel from "../components/sidepanels/RightContextPanel.jsx";
+import ContextDock from "../components/context/ContextDock.jsx";
 
 function HomeFeed() {
   const { activeWorld } = useWorld();
@@ -1061,12 +1062,18 @@ function HomeFeed() {
                     }}
                   >
 				  
-				  <RightContextPanel
-  video={video}
-  analysis={analysisByVideo[video.id] || null}
-  counts={counts}
-  myReaction={myReaction}
-/>
+                  <ContextDock
+                    video={video}
+                    counts={counts}
+                    myReaction={myReaction}
+                  />
+
+                  <video
+                   src={video.video_url}
+                   controls
+                   className="aurevi-video-player"
+                   onPlay={() => handleView(video.id)}
+                  />
 				  
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div
