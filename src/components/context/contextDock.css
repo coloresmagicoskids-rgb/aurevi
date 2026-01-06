@@ -1,0 +1,127 @@
+/* ContextDock — barra horizontal limpia */
+.aurevi-contextdock{
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 14px;
+
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  backdrop-filter: blur(10px);
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* fila superior */
+.aurevi-contextdock-top{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* empuja lo de la derecha */
+.aurevi-contextdock .spacer{
+  flex: 1;
+  min-width: 10px;
+}
+
+/* pills (likes/views/category) */
+.aurevi-contextdock .pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  color: #e5e7eb;
+
+  background: rgba(2, 6, 23, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.aurevi-contextdock .pill.tag{
+  text-transform: capitalize;
+  color: #c7d2fe;
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+/* texto meta */
+.aurevi-contextdock .meta{
+  font-size: 12px;
+  color: #cbd5e1;
+  opacity: 0.95;
+}
+
+/* fila de chips */
+.aurevi-contextdock-chips{
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;          /* <- clave: se queda en una línea */
+  overflow-x: auto;           /* <- scroll horizontal si no cabe */
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.aurevi-contextdock-chips::-webkit-scrollbar{
+  height: 6px;
+}
+.aurevi-contextdock-chips::-webkit-scrollbar-thumb{
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+}
+
+/* chips */
+.aurevi-contextdock .chip{
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #e5e7eb;
+
+  background: rgba(2, 6, 23, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* chip activo (mi reacción) */
+.aurevi-contextdock .chip.active{
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(79, 70, 229, 0.20);
+}
+
+/* top chip */
+.aurevi-contextdock .chip.top{
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.15);
+}
+
+/* modo compact */
+.aurevi-contextdock.compact{
+  padding: 8px 10px;
+  gap: 8px;
+}
+.aurevi-contextdock.compact .chip,
+.aurevi-contextdock.compact .pill{
+  font-size: 11px;
+  padding: 5px 9px;
+}
+
+/* Si el chip es <button>, quítale estilo nativo */
+.aurevi-contextdock .chip{
+  cursor: default;
+}
+.aurevi-contextdock button.chip{
+  cursor: pointer;
+  outline: none;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+.aurevi-contextdock button.chip:active{
+  transform: scale(0.98);
+}

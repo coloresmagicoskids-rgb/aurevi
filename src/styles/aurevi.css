@@ -309,3 +309,8 @@ body {
   padding: 8px 10px;
   font-size: 11px;
 }
+.aurevi-post{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

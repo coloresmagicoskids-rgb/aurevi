@@ -7,7 +7,6 @@ import { useWorld } from "../worlds/WorldContext";
 import { WORLD_LABELS } from "../worlds/worldTypes";
 import AdCard from "../components/ads/AdCard.jsx";
 import LeftCreatorPanel from "../components/sidepanels/LeftCreatorPanel.jsx";
-import RightContextPanel from "../components/sidepanels/RightContextPanel.jsx";
 import ContextDock from "../components/context/ContextDock.jsx";
 
 function HomeFeed() {
@@ -32,7 +31,7 @@ function HomeFeed() {
   const [moodFilterMode, setMoodFilterMode] = useState("none"); // "none" | "mood"
 
   // Perfiles de creadores (para avatar + badge)
-  const [creatorProfiles, setCreatorProfiles] = useState({}); // id -> { avatar_url, creative_trend }
+  const [creatorProfiles, setCreatorProfiles] = useState({}); // id -> profile
 
   // Análisis IA por video (mapa video_id -> análisis)
   const [analysisByVideo, setAnalysisByVideo] = useState({});
@@ -47,13 +46,24 @@ function HomeFeed() {
   const [topReaction, setTopReaction] = useState(null);
 
   // ----------------------------------------------------
+  // ✅ Layout responsive SIN window.innerWidth en render
+  // ----------------------------------------------------
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const apply = () => setIsNarrow(!!mq.matches);
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+
+  // ----------------------------------------------------
   // ✅ Anuncios (MVP “no invasivo”)
   // ----------------------------------------------------
-  const ADS_EVERY = 7; // intenta 7–10 para que se sienta natural
-  const MAX_ADS_PER_SESSION = 2; // límite duro por sesión
-  const MIN_POSTS_BETWEEN_ADS = 6; // nunca muy pegados
+  const ADS_EVERY = 7;
+  const MAX_ADS_PER_SESSION = 2;
+  const MIN_POSTS_BETWEEN_ADS = 6;
 
-  // Pool de anuncios (puedes añadir más)
   const adsPool = useMemo(
     () => [
       {
@@ -71,12 +81,10 @@ function HomeFeed() {
     []
   );
 
-  // Estado de sesión de anuncios
   const [adsShownCount, setAdsShownCount] = useState(0);
   const [adIndexCursor, setAdIndexCursor] = useState(0);
-  const lastAdPostIndexRef = useRef(-999); // última posición donde se insertó un ad
+  const lastAdPostIndexRef = useRef(-999);
 
-  // Reset “sesión” cuando cambias de mundo / modo (sensación justa)
   useEffect(() => {
     setAdsShownCount(0);
     setAdIndexCursor(0);
@@ -85,8 +93,7 @@ function HomeFeed() {
 
   const pickNextAd = () => {
     if (!adsPool.length) return null;
-    const ad = adsPool[adIndexCursor % adsPool.length];
-    return ad || null;
+    return adsPool[adIndexCursor % adsPool.length] || null;
   };
 
   const advanceAdCursor = () => {
@@ -94,21 +101,13 @@ function HomeFeed() {
   };
 
   const shouldInsertAdAfterIndex = (idx, totalPosts) => {
-    // Reglas:
-    // 1) Límite por sesión
     if (adsShownCount >= MAX_ADS_PER_SESSION) return false;
-
-    // 2) Necesitamos pool
     if (!adsPool.length) return false;
-
-    // 3) No poner si quedan muy pocos posts (evita “ad al final”)
     if (totalPosts <= 4) return false;
 
-    // 4) Regla base: cada ADS_EVERY posts
     const baseHit = (idx + 1) % ADS_EVERY === 0;
     if (!baseHit) return false;
 
-    // 5) Nunca demasiado cerca del último ad
     const postsSinceLastAd = idx - lastAdPostIndexRef.current;
     if (postsSinceLastAd < MIN_POSTS_BETWEEN_ADS) return false;
 
@@ -118,8 +117,6 @@ function HomeFeed() {
   // ----------------------------------------------------
   // ✅ TRACKING REAL (Supabase) — session_id + dedupe
   // ----------------------------------------------------
-
-  // ✅ Session id (persiste en esta pestaña)
   const sessionIdRef = useRef(null);
   useEffect(() => {
     const key = "aurevi_session_id";
@@ -133,21 +130,17 @@ function HomeFeed() {
     sessionIdRef.current = sid;
   }, []);
 
-  // ✅ Anti-duplicados (React StrictMode puede disparar effects 2 veces en dev)
   const sentEventsRef = useRef(new Set());
 
   const trackAdEvent = async (eventType, ad, extraMeta = {}) => {
     try {
-      // Solo logueados (por RLS)
       if (!currentUser?.id) return;
       if (!ad?.id) return;
 
       const sid = sessionIdRef.current || "no-session";
 
-      // Dedup key
       const dedupKey = `${eventType}:${ad.id}:${sid}:${ad.placement || "home"}`;
       if (eventType === "impression") {
-        // 1 impresión por ad por sesión/placement
         if (sentEventsRef.current.has(dedupKey)) return;
         sentEventsRef.current.add(dedupKey);
       }
@@ -158,13 +151,9 @@ function HomeFeed() {
         ad_id: ad.id,
         placement: ad.placement || "home",
         event_type: eventType,
-
-        // 👉 columnas reales (mejor para métricas)
         world_type: activeWorld,
         feed_mode: feedMode,
         mood_filter_mode: moodFilterMode,
-
-        // 👉 meta flexible (extra / futuro)
         meta: {
           href: ad.href || null,
           theme: ad.theme || null,
@@ -180,7 +169,7 @@ function HomeFeed() {
   };
 
   // ----------------------------------------------------
-  // Helper: mapear mood del usuario a categorías sugeridas
+  // Helper: mapear mood/reacción a categorías sugeridas
   // ----------------------------------------------------
   const moodToCategories = (mood) => {
     switch (mood) {
@@ -199,7 +188,6 @@ function HomeFeed() {
     }
   };
 
-  // mapear reacción favorita a categorías sugeridas
   const reactionToCategories = (reaction) => {
     switch (reaction) {
       case "calma":
@@ -273,7 +261,7 @@ function HomeFeed() {
   }, []);
 
   // ----------------------------------------------------
-  // Reacción predominante del usuario (VERSIÓN NUEVA SIN group())
+  // Reacción predominante del usuario
   // ----------------------------------------------------
   useEffect(() => {
     async function loadTopReaction() {
@@ -373,7 +361,7 @@ function HomeFeed() {
   }, [activeWorld]);
 
   // ----------------------------------------------------
-  // Cargar análisis IA para los videos del feed
+  // Cargar análisis IA
   // ----------------------------------------------------
   useEffect(() => {
     async function loadAnalysesForVideos() {
@@ -408,7 +396,7 @@ function HomeFeed() {
   }, [videos]);
 
   // ----------------------------------------------------
-  // Cargar reacciones de Supabase para los videos
+  // Cargar reacciones
   // ----------------------------------------------------
   useEffect(() => {
     async function loadReactions() {
@@ -446,7 +434,7 @@ function HomeFeed() {
   }, [videos]);
 
   // ----------------------------------------------------
-  // Misión creativa sugerida para el usuario actual
+  // Misión creativa sugerida
   // ----------------------------------------------------
   useEffect(() => {
     async function loadPersonalMission() {
@@ -627,7 +615,7 @@ function HomeFeed() {
     }
   };
 
-  // Eliminar (✅ con verificación real)
+  // Eliminar
   const handleDelete = async (videoId) => {
     const video = videos.find((v) => v.id === videoId);
     if (!video) return;
@@ -649,8 +637,6 @@ function HomeFeed() {
         .eq("id", videoId)
         .eq("user_id", currentUser.id)
         .select("id");
-
-      console.log("DELETE result:", deletedRows, "dbError:", dbError);
 
       if (dbError) {
         console.error("Error al borrar el video en la base de datos:", dbError);
@@ -1022,13 +1008,11 @@ function HomeFeed() {
 
           return (
             <React.Fragment key={video.id}>
-              {/* ✅ Post normal (AHORA con panel izquierdo + panel derecho) */}
               <div
                 className="aurevi-post-row"
                 style={{
                   display: "grid",
-                  gridTemplateColumns:
-                  window.innerWidth <= 900 ? "1fr" : "260px 1fr 300px",
+                  gridTemplateColumns: isNarrow ? "1fr" : "260px 1fr",
                   gap: 14,
                   alignItems: "start",
                 }}
@@ -1050,31 +1034,18 @@ function HomeFeed() {
                   visible={true}
                 />
 
-                {/* 🎥 Post principal (TU CÓDIGO ORIGINAL, intacto) */}
+                {/* 🎥 Post principal */}
                 <article className="aurevi-feed-card">
+                  {/* Header: avatar + título + seguir */}
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
                       gap: 10,
-                      marginBottom: 8,
+                      marginBottom: 10,
                     }}
                   >
-				  
-                  <ContextDock
-                    video={video}
-                    counts={counts}
-                    myReaction={myReaction}
-                  />
-
-                  <video
-                   src={video.video_url}
-                   controls
-                   className="aurevi-video-player"
-                   onPlay={() => handleView(video.id)}
-                  />
-				  
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div
                         style={{
@@ -1101,8 +1072,9 @@ function HomeFeed() {
                           />
                         ) : (
                           <span>
-                            {video.title?.[0]?.toUpperCase() ||
-                              currentUser?.email?.[0]?.toUpperCase() ||
+                            {creator?.display_name?.[0]?.toUpperCase() ||
+                              creator?.username?.[0]?.toUpperCase() ||
+                              video.title?.[0]?.toUpperCase() ||
                               "A"}
                           </span>
                         )}
@@ -1157,13 +1129,23 @@ function HomeFeed() {
                     )}
                   </div>
 
-                  <video
-                    src={video.video_url}
-                    controls
-                    className="aurevi-video-player"
-                    onPlay={() => handleView(video.id)}
-                  />
+                  {/* ✅ Dock + Video (en columna, dock arriba) */}
+                  <div className="aurevi-post">
+                   <ContextDock
+  video={video}
+  counts={counts}
+  myReaction={myReaction}
+  onReact={(reactionKey) => handleReaction(video.id, reactionKey)}
+/>
 
+<video
+  src={video.video_url}
+  controls
+  className="aurevi-video-player"
+  onPlay={() => handleView(video.id)}
+/>
+                  </div>
+				  
                   {video.description && (
                     <p className="aurevi-feed-description">{video.description}</p>
                   )}
@@ -1285,7 +1267,6 @@ function HomeFeed() {
                     </button>
                   </div>
 
-                  {/* ✅ Eliminar solo si es propio */}
                   {isOwn && (
                     <div style={{ marginTop: 10 }}>
                       <button
@@ -1310,38 +1291,24 @@ function HomeFeed() {
                     <CommentsPanel videoId={video.id} />
                   </div>
                 </article>
-
-                {/* 👉 Panel derecho (TERCERA COLUMNA) */}
-                <RightContextPanel
-                  video={video}
-                  creator={creator}
-                  analysis={analysis}
-                  counts={counts}
-                  myReaction={myReaction}
-                  visible={true}
-                />
               </div>
 
-              {/* ✅ Anuncio nativo (con reglas) */}
               {adToShow && (
                 <div style={{ margin: "12px 0" }}>
                   <AdCard
                     ad={adToShow}
                     onClick={(ad) => {
                       console.log("[ad click]", ad?.id, ad?.placement);
-                      trackAdEvent("click", ad, { source: "cta" }); // ✅ CLICK
+                      trackAdEvent("click", ad, { source: "cta" });
                     }}
                   />
                 </div>
               )}
 
-              {/* ✅ Marcamos que se mostró el ad */}
               {adToShow && (
                 <AdShownSideEffect
                   onShown={() => {
-                    trackAdEvent("impression", adToShow); // ✅ IMPRESIÓN
-
-                    // registra para reglas
+                    trackAdEvent("impression", adToShow);
                     lastAdPostIndexRef.current = idx;
                     setAdsShownCount((n) => n + 1);
                     advanceAdCursor();
@@ -1356,10 +1323,6 @@ function HomeFeed() {
   );
 }
 
-/**
- * Componente invisible para ejecutar side-effect
- * sin romper el render loop (y sin useEffect dentro del map).
- */
 function AdShownSideEffect({ onShown }) {
   useEffect(() => {
     onShown?.();

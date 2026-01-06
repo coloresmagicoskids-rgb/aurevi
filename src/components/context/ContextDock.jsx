@@ -1,5 +1,6 @@
 // src/components/context/ContextDock.jsx
 import React, { useMemo } from "react";
+import "./contextDock.css";
 
 /**
  * ContextDock
@@ -10,12 +11,14 @@ import React, { useMemo } from "react";
  * - video: { likes, views, category }
  * - counts: { calma, inspirado, aprendi, me_rei, me_ayudo } (numbers)
  * - myReaction: string | null
+ * - onReact: (reactionKey) => void  ✅ NUEVO
  * - variant: "default" | "compact" (opcional)
  */
 export default function ContextDock({
   video,
   counts,
   myReaction,
+  onReact,
   variant = "default",
 }) {
   const reactionMeta = useMemo(() => {
@@ -27,10 +30,7 @@ export default function ContextDock({
       { key: "me_ayudo", label: "Me ayudó", emoji: "🤝" },
     ];
 
-    const total = Object.values(counts || {}).reduce(
-      (a, b) => a + (Number(b) || 0),
-      0
-    );
+    const total = Object.values(counts || {}).reduce((a, b) => a + (Number(b) || 0), 0);
 
     const top = [...order]
       .map((r) => ({ ...r, n: Number(counts?.[r.key] || 0) }))
@@ -40,6 +40,7 @@ export default function ContextDock({
   }, [counts]);
 
   const isCompact = variant === "compact";
+  const canReact = typeof onReact === "function";
 
   return (
     <div className={"aurevi-contextdock" + (isCompact ? " compact" : "")}>
@@ -67,10 +68,27 @@ export default function ContextDock({
       </div>
 
       {/* Chips horizontales de reacciones */}
-      <div className="aurevi-contextdock-chips" role="list">
+      <div className="aurevi-contextdock-chips" role="list" aria-label="Reacciones">
         {reactionMeta.order.map((r) => {
           const n = Number(counts?.[r.key] || 0);
           const active = myReaction === r.key;
+
+          // Si hay onReact => botón, si no => span
+          if (canReact) {
+            return (
+              <button
+                key={r.key}
+                type="button"
+                className={"chip" + (active ? " active" : "")}
+                title={`${r.label}: ${n}`}
+                role="listitem"
+                onClick={() => onReact(r.key)}
+              >
+                {r.emoji} <strong>{n}</strong>
+              </button>
+            );
+          }
+
           return (
             <span
               key={r.key}
