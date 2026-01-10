@@ -376,3 +376,41 @@ body {
   color: rgba(229,231,235,0.95);
   line-height: 1.2;
 }
+
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+.bottom-bar.hidden {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.bottom-bar.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.bottom-bar.compact {
+  height: 54px;
+  background: rgba(2,6,23,0.85);
+  backdrop-filter: blur(10px);
+}
+
+/* evita que el contenido quede debajo de la BottomBar */
+.aurevi-main {
+  padding-bottom: 92px; /* ajusta al alto real de tu barra */
+}
+
+/* ✅ Para que el contenido NO quede debajo de la BottomBar */
+.aurevi-main{
+  padding-bottom: calc(var(--aurevi-bottom-bar-h) + 14px);
+}
+
+.aurevi-main{
+  padding-bottom: calc(var(--aurevi-bottom-bar-h) + 14px);
+}

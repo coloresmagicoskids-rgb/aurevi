@@ -1,5 +1,5 @@
 // src/screens/AuthScreen.jsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { upsertUserSession } from "../core/sessionTracker";
 
@@ -15,10 +15,18 @@ function AuthScreen() {
     day: "",
     month: "",
     year: "",
-    gender: "Mujer",
+    gender: "Mujer", // ✅ default seguro
     email: "",
     password: "",
   });
+
+  // ✅ Si llega algún valor raro (ej: "Personalizado"), lo normalizamos.
+  useEffect(() => {
+    if (form.gender !== "Mujer" && form.gender !== "Hombre") {
+      setForm((prev) => ({ ...prev, gender: "Mujer" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -53,22 +61,16 @@ function AuthScreen() {
     setErrorMsg("");
 
     try {
-      const {
-        firstName,
-        lastName,
-        day,
-        month,
-        year,
-        gender,
-        email,
-        password,
-      } = form;
+      const { firstName, lastName, day, month, year, gender, email, password } = form;
 
       if (!email || !password) {
         setErrorMsg("Correo y contraseña son obligatorios.");
         setLoading(false);
         return;
       }
+
+      // ✅ Solo aceptamos Mujer/Hombre aunque alguien intente inyectar otro valor
+      const safeGender = gender === "Hombre" ? "Hombre" : "Mujer";
 
       const birthDate = day && month && year ? `${year}-${month}-${day}` : null;
 
@@ -80,7 +82,7 @@ function AuthScreen() {
             first_name: firstName,
             last_name: lastName,
             birthdate: birthDate,
-            gender,
+            gender: safeGender,
           },
         },
       });
@@ -92,7 +94,7 @@ function AuthScreen() {
         return;
       }
 
-      // 🔑 SOLO si hay userId (cuando confirm email está OFF)
+      // ✅ SOLO si hay userId (cuando confirm email está OFF)
       const userId = data?.user?.id;
 
       if (userId) {
@@ -101,7 +103,7 @@ function AuthScreen() {
           .update({
             full_name: `${firstName} ${lastName}`.trim(),
             display_name: (firstName || "").trim() || null,
-            gender,
+            gender: safeGender,
             birth_date: birthDate, // si la columna existe
             role: "viewer",        // si la columna existe
             updated_at: new Date().toISOString(),
@@ -111,9 +113,7 @@ function AuthScreen() {
         if (upErr) console.warn("No se pudo completar perfil:", upErr.message);
       }
 
-      setStatus(
-        "Cuenta creada. Revisa tu correo si es necesario confirmar el email."
-      );
+      setStatus("Cuenta creada. Revisa tu correo si es necesario confirmar el email.");
       setMode("login");
     } catch (err) {
       console.error("Error inesperado en registro:", err);
@@ -161,10 +161,7 @@ function AuthScreen() {
           await upsertUserSession({ appVersion: "1.0.0" });
         }
       } catch (sessionErr) {
-        console.warn(
-          "No se pudo registrar user_session (se continúa igual):",
-          sessionErr
-        );
+        console.warn("No se pudo registrar user_session (se continúa igual):", sessionErr);
       }
     } catch (err) {
       console.error("Error inesperado en login:", err);
@@ -183,8 +180,7 @@ function AuthScreen() {
           <h2 className="profile-hero-title">Tu espacio creativo, seguro.</h2>
           <p className="profile-hero-subtitle">
             Crea tu cuenta para guardar tus videos, progresos y estadísticas.
-            Inicia sesión desde cualquier dispositivo y continúa donde te
-            quedaste.
+            Inicia sesión desde cualquier dispositivo y continúa donde te quedaste.
           </p>
         </div>
 
@@ -258,11 +254,7 @@ function AuthScreen() {
                 </div>
 
                 <div className="profile-date-row">
-                  <select
-                    className="profile-input"
-                    value={form.day}
-                    onChange={handleChange("day")}
-                  >
+                  <select className="profile-input" value={form.day} onChange={handleChange("day")}>
                     <option value="">Día</option>
                     {days.map((d) => (
                       <option key={d} value={String(d).padStart(2, "0")}>
@@ -305,7 +297,8 @@ function AuthScreen() {
                 </div>
 
                 <div className="profile-gender-row">
-                  {["Mujer", "Hombre", "Personalizado"].map((g) => (
+                  {/* ✅ Solo Mujer / Hombre */}
+                  {["Mujer", "Hombre"].map((g) => (
                     <label key={g} className="profile-gender-option">
                       <span>{g}</span>
                       <input
@@ -376,11 +369,7 @@ function AuthScreen() {
               {status && <p className="profile-status profile-status-ok">{status}</p>}
               {errorMsg && <p className="profile-status profile-status-error">{errorMsg}</p>}
 
-              <button
-                className="aurevi-primary-btn profile-main-button"
-                type="submit"
-                disabled={loading}
-              >
+              <button className="aurevi-primary-btn profile-main-button" type="submit" disabled={loading}>
                 {loading ? "Iniciando sesión..." : "Iniciar sesión"}
               </button>
 

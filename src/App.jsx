@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { useWorld } from "./worlds/WorldContext";
 
@@ -234,6 +234,12 @@ function App() {
 
   const mustPickUsername = !usernameLoading && !!needsUsername;
 
+  // ==================================================
+  // ✅ FLAGS PARA BOTTOMBAR (YouTube-like)
+  // ==================================================
+  const bottomBarCompact = currentScreen === "watch";
+  const bottomBarHidden = false; // luego lo conectamos a "comentarios abiertos" si quieres
+
   return (
     <div className="aurevi-app">
       <ChooseUsernameModal
@@ -245,7 +251,13 @@ function App() {
 
       <Header activeWorld={activeWorld} />
       <main className="aurevi-main">{renderScreen()}</main>
-      <BottomBar currentScreen={currentScreen} navigate={navigate} />
+
+     <BottomBar
+  currentScreen={currentScreen}
+  navigate={navigate}
+  compact={currentScreen === "watch"}   // ✅ compacto cuando estás viendo video
+  autoHide={true}                      // ✅ se oculta en scroll hacia abajo
+/>
     </div>
   );
 }

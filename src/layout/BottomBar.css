@@ -1,5 +1,10 @@
 /* src/layout/BottomBar.css */
 
+:root{
+  /* Fallback por si JS no mide todavía */
+  --aurevi-bottom-bar-h: 78px;
+}
+
 /* Safe-area iPhone + glass bar */
 .aurevi-bottombar{
   position: fixed;
@@ -20,6 +25,31 @@
 
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+
+  /* ✅ Para animación tipo YouTube */
+  transition: transform 220ms ease, opacity 180ms ease;
+  will-change: transform;
+}
+
+/* ✅ Auto-hide: baja fuera de pantalla */
+.aurevi-bottombar.is-hidden{
+  transform: translateX(-50%) translateY(calc(120% + env(safe-area-inset-bottom, 0px)));
+  opacity: 0.98;
+}
+
+/* ✅ Compact mode: menos alto para que no moleste */
+.aurevi-bottombar.is-compact{
+  padding: 6px;
+}
+.aurevi-bottombar.is-compact .aurevi-bottombar-scroll{
+  padding: 3px;
+}
+.aurevi-bottombar.is-compact .nav-item{
+  padding: 10px 10px;
+  min-width: 60px;
+}
+.aurevi-bottombar.is-compact .nav-item .label{
+  display: none;
 }
 
 /* Contenedor interno */
