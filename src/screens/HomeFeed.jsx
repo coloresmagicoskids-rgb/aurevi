@@ -6,10 +6,10 @@ import VideoReactions from "../components/VideoReactions";
 import { useWorld } from "../worlds/WorldContext";
 import { WORLD_LABELS } from "../worlds/worldTypes";
 import AdCard from "../components/ads/AdCard.jsx";
-import LeftCreatorPanel from "../components/sidepanels/LeftCreatorPanel.jsx";
 import ContextDock from "../components/context/ContextDock.jsx";
+import CreatorBar from "../components/creator/CreatorBar.jsx";
 
-function HomeFeed() {
+function HomeFeed({ navigate, params }) {
   const { activeWorld } = useWorld();
 
   const [videos, setVideos] = useState([]);
@@ -20,30 +20,60 @@ function HomeFeed() {
   const [currentUser, setCurrentUser] = useState(null);
   const [followingIds, setFollowingIds] = useState(new Set());
 
-  // Modo del feed: todo o solo gente que sigo
   const [feedMode, setFeedMode] = useState("all"); // "all" | "following"
 
-  // Perfil creativo–emocional del usuario que mira
   const [viewerMood, setViewerMood] = useState(""); // daily_mood
   const [viewerTrend, setViewerTrend] = useState(""); // creative_trend
 
-  // Filtro de mood aplicado al feed
   const [moodFilterMode, setMoodFilterMode] = useState("none"); // "none" | "mood"
 
-  // Perfiles de creadores (para avatar + badge)
   const [creatorProfiles, setCreatorProfiles] = useState({}); // id -> profile
-
-  // Análisis IA por video (mapa video_id -> análisis)
   const [analysisByVideo, setAnalysisByVideo] = useState({});
-
-  // Misión creativa sugerida para el usuario actual
   const [personalMission, setPersonalMission] = useState(null);
-
-  // Memoria de reacciones por video
   const [reactionsByVideo, setReactionsByVideo] = useState({});
-
-  // Reacción predominante del usuario (para el algoritmo)
   const [topReaction, setTopReaction] = useState(null);
+
+  // ✅ video activo para reproducir en el panel izquierdo
+  const [activeVideoId, setActiveVideoId] = useState(null);
+
+  // ✅ Preview refs (panel derecho)
+  const previewRefs = useRef({});
+  const previewTimers = useRef({});
+
+  // ✅ Scroll suave hacia el reproductor + Toast "Reproduciendo: X" + Deshacer
+  const mainPlayerRef = useRef(null);
+  const commentsRef = useRef(null);
+
+  const lastVideoIdRef = useRef(null); // para "Deshacer"
+  const lastSwitchReasonRef = useRef(null); // info opcional
+
+  const [toast, setToast] = useState({
+    visible: false,
+    text: "",
+    undoVideoId: null,
+  });
+
+  const toastTimerRef = useRef(null);
+
+  const showToast = (text, undoVideoId = null) => {
+    setToast({ visible: true, text: text || "", undoVideoId });
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToast((t) => ({ ...t, visible: false }));
+    }, 2200);
+  };
+
+  useEffect(() => {
+    return () => clearTimeout(toastTimerRef.current);
+  }, []);
+
+  // ✅ Comentarios desplegables
+  const [commentsOpen, setCommentsOpen] = useState(false);
+
+  // Cuando cambias de video, por defecto cerramos comentarios
+  useEffect(() => {
+    setCommentsOpen(false);
+  }, [activeVideoId]);
 
   // ----------------------------------------------------
   // ✅ Layout responsive SIN window.innerWidth en render
@@ -166,6 +196,66 @@ function HomeFeed() {
     } catch (e) {
       console.error("trackAdEvent error:", e);
     }
+  };
+
+  // ----------------------------------------------------
+  // ✅ Helpers: tiempo (Nuevo / Hace X)
+  // ----------------------------------------------------
+  const timeAgo = (iso) => {
+    if (!iso) return "";
+    const t = new Date(iso).getTime();
+    const now = Date.now();
+    const diff = Math.max(0, now - t);
+
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Ahora";
+    if (mins < 60) return `Hace ${mins} min`;
+
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `Hace ${hrs} h`;
+
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return "Ayer";
+    return `Hace ${days} días`;
+  };
+
+  const isNewVideo = (iso, hours = 6) => {
+    if (!iso) return false;
+    const t = new Date(iso).getTime();
+    return Date.now() - t <= hours * 60 * 60 * 1000;
+  };
+
+  // ----------------------------------------------------
+  // ✅ Preview silencioso (panel derecho)
+  // ----------------------------------------------------
+  const stopPreview = (videoId) => {
+    const el = previewRefs.current[videoId];
+    if (!el) return;
+
+    clearTimeout(previewTimers.current[videoId]);
+    previewTimers.current[videoId] = null;
+
+    try {
+      el.pause?.();
+      el.currentTime = 0;
+    } catch {}
+  };
+
+  const startPreview = (videoId) => {
+    const el = previewRefs.current[videoId];
+    if (!el) return;
+
+    try {
+      el.muted = true;
+      el.playsInline = true;
+      el.currentTime = 0;
+
+      const p = el.play?.();
+      if (p?.catch) p.catch(() => {});
+    } catch {}
+
+    clearTimeout(previewTimers.current[videoId]);
+    previewTimers.current[videoId] = setTimeout(() => stopPreview(videoId), 3000);
   };
 
   // ----------------------------------------------------
@@ -337,7 +427,11 @@ function HomeFeed() {
       setVideos(list);
       setLoading(false);
 
-      const userIds = Array.from(new Set(list.map((v) => v.user_id).filter((id) => !!id)));
+      setActiveVideoId((prev) => prev ?? (list?.[0]?.id || null));
+
+      const userIds = Array.from(
+        new Set(list.map((v) => v.user_id).filter((id) => !!id))
+      );
       if (userIds.length === 0) return;
 
       const { data: profiles, error: profilesError } = await supabase
@@ -359,6 +453,74 @@ function HomeFeed() {
 
     fetchVideos();
   }, [activeWorld]);
+
+  // ----------------------------------------------------
+  // ✅ Click en alerta → activar video + scroll al reproductor (usando params)
+  // ----------------------------------------------------
+  const pendingAlertVideoIdRef = useRef(null);
+
+  const scrollToMainPlayer = () => {
+    requestAnimationFrame(() => {
+      mainPlayerRef.current?.scrollIntoView?.({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
+
+  useEffect(() => {
+    const targetVideoId = params?.videoId;
+    const from = params?.from; // ✅ FIX: aquí estaba el error de sintaxis
+
+    if (!targetVideoId) return;
+
+    pendingAlertVideoIdRef.current = String(targetVideoId);
+
+    if (videos && videos.length > 0) {
+      const exists = videos.some(
+        (v) => String(v.id) === String(targetVideoId)
+      );
+      if (!exists) return;
+
+      lastVideoIdRef.current = activeVideoId;
+      lastSwitchReasonRef.current = "alerts_click";
+
+      setActiveVideoId(targetVideoId);
+
+      showToast(
+        from === "alerts" ? "Abierto desde alertas 🔔" : "Abriendo video…",
+        lastVideoIdRef.current
+      );
+
+      scrollToMainPlayer();
+
+      // ✅ limpiar params para que no se repita en próximos renders
+      navigate?.("home", null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params?.videoId, videos]);
+
+  useEffect(() => {
+    const pending = pendingAlertVideoIdRef.current;
+    if (!pending) return;
+    if (!videos || videos.length === 0) return;
+
+    const exists = videos.some((v) => String(v.id) === String(pending));
+    if (!exists) return;
+
+    pendingAlertVideoIdRef.current = null;
+
+    lastVideoIdRef.current = activeVideoId;
+    lastSwitchReasonRef.current = "alerts_pending";
+
+    setActiveVideoId(pending);
+    showToast("Abierto desde alertas 🔔", lastVideoIdRef.current);
+    scrollToMainPlayer();
+
+    // limpiar params
+    navigate?.("home", null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videos]);
 
   // ----------------------------------------------------
   // Cargar análisis IA
@@ -455,7 +617,9 @@ function HomeFeed() {
         return;
       }
 
-      const mine = (data || []).find((row) => row.video && row.video.user_id === currentUser.id);
+      const mine = (data || []).find(
+        (row) => row.video && row.video.user_id === currentUser.id
+      );
 
       if (!mine) {
         setPersonalMission(null);
@@ -481,7 +645,9 @@ function HomeFeed() {
       const currentLikes = video.likes ?? 0;
 
       setVideos((prev) =>
-        prev.map((v) => (v.id === videoId ? { ...v, likes: currentLikes + 1 } : v))
+        prev.map((v) =>
+          v.id === videoId ? { ...v, likes: currentLikes + 1 } : v
+        )
       );
 
       const { error } = await supabase
@@ -492,7 +658,9 @@ function HomeFeed() {
       if (error) {
         console.error("Error actualizando likes:", error);
         setVideos((prev) =>
-          prev.map((v) => (v.id === videoId ? { ...v, likes: currentLikes } : v))
+          prev.map((v) =>
+            v.id === videoId ? { ...v, likes: currentLikes } : v
+          )
         );
       }
     } catch (err) {
@@ -517,7 +685,9 @@ function HomeFeed() {
       });
 
       setVideos((prev) =>
-        prev.map((v) => (v.id === videoId ? { ...v, views: currentViews + 1 } : v))
+        prev.map((v) =>
+          v.id === videoId ? { ...v, views: currentViews + 1 } : v
+        )
       );
 
       const { error } = await supabase
@@ -529,7 +699,9 @@ function HomeFeed() {
         console.error("Error actualizando vistas:", error);
 
         setVideos((prev) =>
-          prev.map((v) => (v.id === videoId ? { ...v, views: currentViews } : v))
+          prev.map((v) =>
+            v.id === videoId ? { ...v, views: currentViews } : v
+          )
         );
 
         setViewedIds((prev) => {
@@ -625,7 +797,9 @@ function HomeFeed() {
       return;
     }
 
-    const confirmDelete = window.confirm("¿Seguro que quieres eliminar este video de AUREVI?");
+    const confirmDelete = window.confirm(
+      "¿Seguro que quieres eliminar este video de AUREVI?"
+    );
     if (!confirmDelete) return;
 
     try {
@@ -645,7 +819,9 @@ function HomeFeed() {
       }
 
       if (!deletedRows || deletedRows.length === 0) {
-        setErrorMsg("No se eliminó ningún registro. Revisa RLS/políticas en Supabase.");
+        setErrorMsg(
+          "No se eliminó ningún registro. Revisa RLS/políticas en Supabase."
+        );
         return;
       }
 
@@ -653,13 +829,16 @@ function HomeFeed() {
         const { error: storageError } = await supabase.storage
           .from("aurevi-videos")
           .remove([video.file_path]);
-
-        if (storageError) {
+        if (storageError)
           console.error("Error al eliminar archivo de Storage:", storageError);
-        }
       }
 
       setVideos((prev) => prev.filter((v) => v.id !== videoId));
+
+      if (activeVideoId === videoId) {
+        const remaining = videos.filter((v) => v.id !== videoId);
+        setActiveVideoId(remaining?.[0]?.id || null);
+      }
     } catch (err) {
       console.error("Error inesperado al eliminar video:", err);
       setErrorMsg("Ocurrió un error inesperado al eliminar el video.");
@@ -694,10 +873,7 @@ function HomeFeed() {
       ];
     }
 
-    setReactionsByVideo((prev) => ({
-      ...prev,
-      [videoId]: newList,
-    }));
+    setReactionsByVideo((prev) => ({ ...prev, [videoId]: newList }));
 
     try {
       if (isSame) {
@@ -729,10 +905,7 @@ function HomeFeed() {
           .eq("video_id", videoId);
 
         if (!error) {
-          setReactionsByVideo((prev) => ({
-            ...prev,
-            [videoId]: data || [],
-          }));
+          setReactionsByVideo((prev) => ({ ...prev, [videoId]: data || [] }));
         }
       } catch (err2) {
         console.error("Error recargando reacciones:", err2);
@@ -799,12 +972,16 @@ function HomeFeed() {
   // ----------------------------------------------------
   let filteredVideos =
     feedMode === "following"
-      ? videos.filter((v) => currentUser && v.user_id && followingIds.has(v.user_id))
+      ? videos.filter(
+          (v) => currentUser && v.user_id && followingIds.has(v.user_id)
+        )
       : videos;
 
   if (moodFilterMode === "mood" && viewerMood && recommendedCategories.length) {
     const cats = new Set(recommendedCategories);
-    filteredVideos = filteredVideos.filter((v) => (v.category ? cats.has(v.category) : false));
+    filteredVideos = filteredVideos.filter((v) =>
+      v.category ? cats.has(v.category) : false
+    );
   }
 
   if (recommendedCategories.length > 0) {
@@ -818,6 +995,60 @@ function HomeFeed() {
   }
 
   const worldLabel = WORLD_LABELS[activeWorld] || "Mundo público";
+
+  // ✅ Video activo + lista lateral
+  const activeVideo =
+    filteredVideos.find((v) => v.id === activeVideoId) ||
+    filteredVideos[0] ||
+    null;
+  const sideVideos = filteredVideos.filter((v) => v.id !== activeVideo?.id);
+
+  // ✅ Ads: escoger uno (si toca) usando la misma lógica base
+  const showSideAd = shouldInsertAdAfterIndex(ADS_EVERY - 1, filteredVideos.length);
+  const adToShow = showSideAd ? pickNextAd() : null;
+
+  const handleUndo = () => {
+    const undoId = toast.undoVideoId;
+    if (!undoId) return;
+
+    lastVideoIdRef.current = activeVideoId;
+    lastSwitchReasonRef.current = "undo";
+
+    setActiveVideoId(undoId);
+    showToast("Deshecho ✅", null);
+    scrollToMainPlayer();
+  };
+
+  const handleSelectSideVideo = (v) => {
+    if (!v?.id) return;
+
+    stopPreview(v.id);
+
+    lastVideoIdRef.current = activeVideoId;
+    lastSwitchReasonRef.current = "side_click";
+
+    setActiveVideoId(v.id);
+
+    const name = v.title || "Video sin título";
+    showToast(`Reproduciendo: ${name}`, lastVideoIdRef.current);
+
+    scrollToMainPlayer();
+  };
+
+  const toggleComments = () => {
+    setCommentsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        requestAnimationFrame(() => {
+          commentsRef.current?.scrollIntoView?.({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+      }
+      return next;
+    });
+  };
 
   // ----------------------------------------------------
   // Render
@@ -894,7 +1125,8 @@ function HomeFeed() {
 
           {topReaction && (
             <div style={{ marginTop: 6, fontSize: 13, color: "#e5e7eb" }}>
-              Reacción que más usas últimamente: <strong>{reactionLabel(topReaction)}</strong>
+              Reacción que más usas últimamente:{" "}
+              <strong>{reactionLabel(topReaction)}</strong>
             </div>
           )}
 
@@ -984,317 +1216,346 @@ function HomeFeed() {
         </p>
       )}
 
-      <div className="aurevi-feed-list">
-        {filteredVideos.map((video, idx) => {
-          const isOwn = currentUser && video.user_id && video.user_id === currentUser.id;
-          const isFollowing = currentUser && video.user_id ? followingIds.has(video.user_id) : false;
+      {/* ✅ Toast flotante (con Deshacer) */}
+      {toast.visible && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: 22,
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            padding: "10px 12px",
+            borderRadius: 999,
+            background: "rgba(2,6,23,0.92)",
+            border: "1px solid rgba(148,163,184,0.28)",
+            color: "#e5e7eb",
+            fontSize: 13,
+            boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
+            maxWidth: "min(92vw, 720px)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+          title={toast.text}
+        >
+          <div
+            style={{
+              minWidth: 0,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {toast.text}
+          </div>
 
-          const creator = video.user_id ? creatorProfiles[video.user_id] || null : null;
-          const creatorTrend = creator?.creative_trend || null;
+          {toast.undoVideoId && (
+            <button
+              type="button"
+              onClick={handleUndo}
+              style={{
+                border: "1px solid rgba(148,163,184,0.35)",
+                background: "rgba(15,23,42,0.75)",
+                color: "#e5e7eb",
+                borderRadius: 999,
+                padding: "6px 10px",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+              title="Volver al video anterior"
+            >
+              ⤺ Deshacer
+            </button>
+          )}
+        </div>
+      )}
 
-          const analysis = analysisByVideo[video.id];
+      {/* ✅ NUEVO LAYOUT: izquierda = video activo | derecha = nuevos videos */}
+      {!loading && filteredVideos.length > 0 && (
+        <div
+          className="aurevi-home-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: isNarrow ? "1fr" : "1.55fr 0.85fr",
+            gap: 14,
+            alignItems: "start",
+          }}
+        >
+          {/* IZQUIERDA: Video activo */}
+          <div className="aurevi-home-main">
+            {!activeVideo ? (
+              <div className="aurevi-feed-card" style={{ padding: 14 }}>
+                <div style={{ color: "#9ca3af" }}>No hay video activo.</div>
+              </div>
+            ) : (
+              (() => {
+                const video = activeVideo;
 
-          const listReactions = reactionsByVideo[video.id] || [];
-          const counts = listReactions.reduce((acc, r) => {
-            acc[r.reaction] = (acc[r.reaction] || 0) + 1;
-            return acc;
-          }, {});
-          const myReaction = currentUser
-            ? listReactions.find((r) => r.user_id === currentUser.id)?.reaction || null
-            : null;
+                const isOwn =
+                  currentUser && video.user_id && video.user_id === currentUser.id;
+                const isFollowing =
+                  currentUser && video.user_id ? followingIds.has(video.user_id) : false;
 
-          const showAdHere = shouldInsertAdAfterIndex(idx, filteredVideos.length);
-          const adToShow = showAdHere ? pickNextAd() : null;
+                const creator = video.user_id ? creatorProfiles[video.user_id] || null : null;
+                const creatorTrend = creator?.creative_trend || null;
 
-          return (
-            <React.Fragment key={video.id}>
-              <div
-                className="aurevi-post-row"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: isNarrow ? "1fr" : "260px 1fr",
-                  gap: 14,
-                  alignItems: "start",
-                }}
-              >
-                {/* 👈 Panel izquierdo */}
-                <LeftCreatorPanel
-                  video={video}
-                  creator={{
-                    id: video.user_id,
-                    avatar_url: creator?.avatar_url,
-                    creative_trend: creator?.creative_trend,
-                    display_name: creator?.display_name,
-                    username: creator?.username,
-                  }}
-                  currentUserId={currentUser?.id || null}
-                  isFollowing={isFollowing}
-                  isOwn={isOwn}
-                  onToggleFollow={handleToggleFollow}
-                  visible={true}
-                />
+                const analysis = analysisByVideo[video.id];
 
-                {/* 🎥 Post principal */}
-                <article className="aurevi-feed-card">
-                  {/* Header: avatar + título + seguir */}
-                  <div
+                const listReactions = reactionsByVideo[video.id] || [];
+                const counts = listReactions.reduce((acc, r) => {
+                  acc[r.reaction] = (acc[r.reaction] || 0) + 1;
+                  return acc;
+                }, {});
+                const myReaction = currentUser
+                  ? listReactions.find((r) => r.user_id === currentUser.id)?.reaction || null
+                  : null;
+
+                return (
+                  <article
+                    ref={mainPlayerRef}
+                    className="aurevi-feed-card"
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      marginBottom: 10,
+                      border: "1px solid rgba(99,102,241,0.55)",
+                      boxShadow:
+                        "0 0 0 2px rgba(99,102,241,0.18), 0 12px 32px rgba(0,0,0,0.35)",
+                      scrollMarginTop: 96,
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div className="aurevi-post" style={{ padding: 2 }}>
+                      <CreatorBar
+                        creator={{
+                          id: video.user_id,
+                          avatar_url: creator?.avatar_url,
+                          display_name: creator?.display_name,
+                          username: creator?.username,
+                          creative_trend: creatorTrend,
+                        }}
+                        isOwn={isOwn}
+                        isFollowing={isFollowing}
+                        onToggleFollow={handleToggleFollow}
+                      />
+
+                      <ContextDock video={video} counts={counts} myReaction={myReaction} />
+
+                      <video
+                        key={video.id}
+                        src={video.video_url}
+                        controls
+                        className="aurevi-video-player"
+                        onPlay={() => handleView(video.id)}
+                        onEnded={() => {
+                          const next = sideVideos?.[0];
+                          if (next?.id) {
+                            lastVideoIdRef.current = video.id;
+                            lastSwitchReasonRef.current = "ended_autoplay";
+
+                            setActiveVideoId(next.id);
+                            showToast(
+                              `Reproduciendo: ${next.title || "Video sin título"}`,
+                              lastVideoIdRef.current
+                            );
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {video.description && (
+                      <p className="aurevi-feed-description">{video.description}</p>
+                    )}
+
+                    {analysis && (
                       <div
                         style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: "999px",
-                          background:
-                            "radial-gradient(circle at 30% 20%, #f97316, #4f46e5 55%, #020617)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          overflow: "hidden",
-                          flexShrink: 0,
-                          fontSize: 14,
-                          color: "#f9fafb",
-                          fontWeight: 600,
+                          marginTop: 6,
+                          padding: 8,
+                          borderRadius: 12,
+                          background: "rgba(15,23,42,0.95)",
+                          border: "1px solid rgba(148,163,184,0.45)",
+                          fontSize: 11,
                         }}
                       >
-                        {creator?.avatar_url ? (
-                          <img
-                            src={creator.avatar_url}
-                            alt="Avatar creador"
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                          />
-                        ) : (
-                          <span>
-                            {creator?.display_name?.[0]?.toUpperCase() ||
-                              creator?.username?.[0]?.toUpperCase() ||
-                              video.title?.[0]?.toUpperCase() ||
-                              "A"}
-                          </span>
-                        )}
-                      </div>
-
-                      <div>
-                        <h3 className="aurevi-feed-title" style={{ margin: 0, fontSize: "0.98rem" }}>
-                          {video.title || "Video sin título"}
-                        </h3>
-
-                        {creatorTrend && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
                           <span
                             style={{
-                              display: "inline-block",
-                              marginTop: 2,
-                              fontSize: 11,
                               padding: "2px 8px",
                               borderRadius: 999,
-                              background: "rgba(15,23,42,0.9)",
+                              background: "rgba(30,64,175,0.9)",
                               color: "#e5e7eb",
                             }}
                           >
-                            {{
-                              explorador: "Explorador de ideas",
-                              constructor: "Constructor/a de conocimientos",
-                              narrador: "Narrador/a",
-                              musico: "Músico / sonoro",
-                              mentor: "Mentor / guía",
-                              multicreativo: "Multicreativo",
-                            }[creatorTrend] || creatorTrend}
+                            Clima IA: {renderMoodLabel(analysis.mood_detected)}
                           </span>
-                        )}
-                      </div>
-                    </div>
+                          {analysis.emotion && (
+                            <span
+                              style={{
+                                padding: "2px 8px",
+                                borderRadius: 999,
+                                background: "rgba(15,23,42,0.9)",
+                                color: "#e5e7eb",
+                              }}
+                            >
+                              Emoción: {analysis.emotion}
+                            </span>
+                          )}
+                        </div>
 
-                    {currentUser && !isOwn && video.user_id && (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleFollow(video.user_id)}
-                        style={{
-                          borderRadius: 999,
-                          border: "none",
-                          padding: "6px 14px",
-                          fontSize: 13,
-                          cursor: "pointer",
-                          background: isFollowing ? "#1f2937" : "#4b5563",
-                          color: "#fff",
-                        }}
-                      >
-                        {isFollowing ? "Siguiendo" : "Seguir"}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* ✅ Dock + Video (en columna, dock arriba) */}
-                  <div className="aurevi-post">
-                   <ContextDock
-  video={video}
-  counts={counts}
-  myReaction={myReaction}
-  onReact={(reactionKey) => handleReaction(video.id, reactionKey)}
-/>
-
-<video
-  src={video.video_url}
-  controls
-  className="aurevi-video-player"
-  onPlay={() => handleView(video.id)}
-/>
-                  </div>
-				  
-                  {video.description && (
-                    <p className="aurevi-feed-description">{video.description}</p>
-                  )}
-
-                  {analysis && (
-                    <div
-                      style={{
-                        marginTop: 6,
-                        padding: 8,
-                        borderRadius: 12,
-                        background: "rgba(15,23,42,0.95)",
-                        border: "1px solid rgba(148,163,184,0.45)",
-                        fontSize: 11,
-                      }}
-                    >
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
-                        <span
+                        <div
                           style={{
-                            padding: "2px 8px",
-                            borderRadius: 999,
-                            background: "rgba(30,64,175,0.9)",
-                            color: "#e5e7eb",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit,minmax(90px,1fr))",
+                            gap: 6,
                           }}
                         >
-                          Clima IA: {renderMoodLabel(analysis.mood_detected)}
-                        </span>
-                        {analysis.emotion && (
-                          <span
-                            style={{
-                              padding: "2px 8px",
-                              borderRadius: 999,
-                              background: "rgba(15,23,42,0.9)",
-                              color: "#e5e7eb",
-                            }}
-                          >
-                            Emoción: {analysis.emotion}
-                          </span>
-                        )}
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit,minmax(90px,1fr))",
-                          gap: 6,
-                        }}
-                      >
-                        <div>
-                          <div>Claridad</div>
-                          <div style={{ color: "#9ca3af" }}>{analysis.clarity ?? "—"}/5</div>
-                          {renderScoreBar(analysis.clarity)}
-                        </div>
-                        <div>
-                          <div>Narrativa</div>
-                          <div style={{ color: "#9ca3af" }}>
-                            {analysis.narrative_quality ?? "—"}/5
+                          <div>
+                            <div>Claridad</div>
+                            <div style={{ color: "#9ca3af" }}>{analysis.clarity ?? "—"}/5</div>
+                            {renderScoreBar(analysis.clarity)}
                           </div>
-                          {renderScoreBar(analysis.narrative_quality)}
-                        </div>
-                        <div>
-                          <div>Creatividad</div>
-                          <div style={{ color: "#9ca3af" }}>
-                            {analysis.creativity_score ?? "—"}/5
+                          <div>
+                            <div>Narrativa</div>
+                            <div style={{ color: "#9ca3af" }}>{analysis.narrative_quality ?? "—"}/5</div>
+                            {renderScoreBar(analysis.narrative_quality)}
                           </div>
-                          {renderScoreBar(analysis.creativity_score)}
+                          <div>
+                            <div>Creatividad</div>
+                            <div style={{ color: "#9ca3af" }}>{analysis.creativity_score ?? "—"}/5</div>
+                            {renderScoreBar(analysis.creativity_score)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  <VideoReactions
-                    videoId={video.id}
-                    userReaction={myReaction}
-                    counts={counts}
-                    onReact={(reactionKey) => handleReaction(video.id, reactionKey)}
-                  />
+                    <VideoReactions
+                      videoId={video.id}
+                      userReaction={myReaction}
+                      counts={counts}
+                      onReact={(reactionKey) => handleReaction(video.id, reactionKey)}
+                    />
 
-                  <div
-                    style={{
-                      marginTop: 8,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleLike(video.id)}
-                      style={{
-                        border: "none",
-                        borderRadius: 20,
-                        padding: "6px 14px",
-                        cursor: "pointer",
-                        fontSize: 14,
-                        background: "linear-gradient(90deg, #ff7aa2, #ffb347, #ffd452)",
-                      }}
-                    >
-                      ❤️ Me gusta
-                    </button>
-
-                    <span style={{ fontSize: 14, opacity: 0.9 }}>{video.likes ?? 0} me gusta</span>
-                    <span style={{ fontSize: 14, opacity: 0.9 }}>👁️ {video.views ?? 0} vistas</span>
-
-                    <button
-                      type="button"
-                      onClick={() => handleShare(video)}
-                      style={{
-                        border: "none",
-                        borderRadius: 20,
-                        padding: "6px 14px",
-                        cursor: "pointer",
-                        fontSize: 14,
-                        background: "#111827",
-                        color: "#e5e7eb",
-                      }}
-                    >
-                      🔗 Compartir
-                    </button>
-                  </div>
-
-                  {isOwn && (
-                    <div style={{ marginTop: 10 }}>
+                    <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <button
                         type="button"
-                        onClick={() => handleDelete(video.id)}
+                        onClick={() => handleLike(video.id)}
                         style={{
                           border: "none",
                           borderRadius: 20,
                           padding: "6px 14px",
                           cursor: "pointer",
                           fontSize: 14,
-                          background: "#ef4444",
-                          color: "#fff",
+                          background: "linear-gradient(90deg, #ff7aa2, #ffb347, #ffd452)",
                         }}
                       >
-                        🗑️ Eliminar video
+                        ❤️ Me gusta
+                      </button>
+
+                      <span style={{ fontSize: 14, opacity: 0.9 }}>{video.likes ?? 0} me gusta</span>
+                      <span style={{ fontSize: 14, opacity: 0.9 }}>👁️ {video.views ?? 0} vistas</span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleShare(video)}
+                        style={{
+                          border: "none",
+                          borderRadius: 20,
+                          padding: "6px 14px",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          background: "#111827",
+                          color: "#e5e7eb",
+                        }}
+                      >
+                        🔗 Compartir
+                      </button>
+
+                      {/* ✅ Botón Comentarios (desplegable) */}
+                      <button
+                        type="button"
+                        onClick={toggleComments}
+                        style={{
+                          border: "1px solid rgba(148,163,184,0.28)",
+                          borderRadius: 20,
+                          padding: "6px 14px",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          background: commentsOpen ? "rgba(99,102,241,0.18)" : "rgba(15,23,42,0.8)",
+                          color: "#e5e7eb",
+                        }}
+                        title="Mostrar / ocultar comentarios"
+                      >
+                        💬 Comentarios {commentsOpen ? "▲" : "▼"}
                       </button>
                     </div>
-                  )}
 
-                  <div style={{ marginTop: 12 }}>
-                    <CommentsPanel videoId={video.id} />
-                  </div>
-                </article>
+                    {isOwn && (
+                      <div style={{ marginTop: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(video.id)}
+                          style={{
+                            border: "none",
+                            borderRadius: 20,
+                            padding: "6px 14px",
+                            cursor: "pointer",
+                            fontSize: 14,
+                            background: "#ef4444",
+                            color: "#fff",
+                          }}
+                        >
+                          🗑️ Eliminar video
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ✅ Comentarios desplegables */}
+                    <div
+                      ref={commentsRef}
+                      style={{
+                        marginTop: 12,
+                        overflow: "hidden",
+                        maxHeight: commentsOpen ? 900 : 0,
+                        opacity: commentsOpen ? 1 : 0,
+                        transition: "max-height 240ms ease, opacity 200ms ease",
+                        borderRadius: 14,
+                      }}
+                    >
+                      {commentsOpen && (
+                        <div
+                          style={{
+                            paddingTop: 10,
+                            borderTop: "1px solid rgba(148,163,184,0.18)",
+                          }}
+                        >
+                          <CommentsPanel videoId={video.id} />
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })()
+            )}
+          </div>
+
+          {/* DERECHA: Nuevos videos */}
+          <aside
+            className="aurevi-home-side"
+            style={{
+              position: isNarrow ? "static" : "sticky",
+              top: 88,
+            }}
+          >
+            <div className="aurevi-feed-card" style={{ padding: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontWeight: 900, color: "#e5e7eb" }}>Nuevos videos</div>
+                <div style={{ fontSize: 12, color: "#94a3b8" }}>{sideVideos.length}</div>
               </div>
 
+              {/* ✅ Ad discreto en el panel derecho */}
               {adToShow && (
-                <div style={{ margin: "12px 0" }}>
+                <div style={{ marginTop: 10 }}>
                   <AdCard
                     ad={adToShow}
                     onClick={(ad) => {
@@ -1302,23 +1563,145 @@ function HomeFeed() {
                       trackAdEvent("click", ad, { source: "cta" });
                     }}
                   />
+                  <AdShownSideEffect
+                    onShown={() => {
+                      trackAdEvent("impression", adToShow);
+                      lastAdPostIndexRef.current = ADS_EVERY - 1;
+                      setAdsShownCount((n) => n + 1);
+                      advanceAdCursor();
+                    }}
+                  />
                 </div>
               )}
 
-              {adToShow && (
-                <AdShownSideEffect
-                  onShown={() => {
-                    trackAdEvent("impression", adToShow);
-                    lastAdPostIndexRef.current = idx;
-                    setAdsShownCount((n) => n + 1);
-                    advanceAdCursor();
-                  }}
-                />
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
+              <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                {sideVideos.slice(0, 25).map((v) => {
+                  const c = v.user_id ? creatorProfiles[v.user_id] || null : null;
+                  const isActive = activeVideoId === v.id;
+
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => handleSelectSideVideo(v)}
+                      onMouseEnter={() => startPreview(v.id)}
+                      onMouseLeave={() => stopPreview(v.id)}
+                      onTouchStart={() => startPreview(v.id)}
+                      onTouchEnd={() => stopPreview(v.id)}
+                      style={{
+                        textAlign: "left",
+                        border: isActive
+                          ? "1px solid rgba(99,102,241,0.7)"
+                          : "1px solid rgba(148,163,184,0.18)",
+                        boxShadow: isActive ? "0 0 0 2px rgba(99,102,241,0.18)" : "none",
+                        background: "rgba(2,6,23,0.45)",
+                        borderRadius: 14,
+                        padding: 10,
+                        cursor: "pointer",
+                        display: "grid",
+                        gridTemplateColumns: "80px 1fr",
+                        gap: 10,
+                        alignItems: "center",
+                        transition: "border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+                        transform: isActive ? "translateY(-1px)" : "none",
+                      }}
+                      title="Reproducir este video"
+                    >
+                      {/* ✅ Preview real (silencioso) */}
+                      <div
+                        style={{
+                          width: 80,
+                          height: 52,
+                          borderRadius: 12,
+                          overflow: "hidden",
+                          background: "rgba(15,23,42,0.8)",
+                          border: "1px solid rgba(148,163,184,0.2)",
+                          position: "relative",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <video
+                          ref={(node) => (previewRefs.current[v.id] = node)}
+                          src={v.video_url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#e5e7eb",
+                            fontWeight: 900,
+                            textShadow: "0 2px 10px rgba(0,0,0,0.55)",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          ▶
+                        </div>
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontWeight: 800,
+                            color: "#e5e7eb",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {v.title || "Video sin título"}
+                        </div>
+
+                        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>
+                          {c?.display_name || (c?.username ? `@${c.username}` : "Creador/a")}
+                          {v.category ? ` • ${v.category}` : ""}
+                        </div>
+
+                        {/* ✅ Nuevo / Hace X */}
+                        <div style={{ marginTop: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              fontSize: 11,
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              background: "rgba(15,23,42,0.85)",
+                              border: "1px solid rgba(148,163,184,0.22)",
+                              color: "rgba(229,231,235,0.95)",
+                            }}
+                          >
+                            {isNewVideo(v.created_at) ? "🟣 Nuevo" : `🕒 ${timeAgo(v.created_at)}`}
+                          </span>
+
+                          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                            👁️ {v.views ?? 0} • ❤️ {v.likes ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {sideVideos.length === 0 && (
+                  <div style={{ color: "#94a3b8", fontSize: 13 }}>
+                    No hay más videos para mostrar aquí.
+                  </div>
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
     </section>
   );
 }

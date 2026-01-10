@@ -156,11 +156,11 @@ function App() {
   }, [user?.id]);
 
   // ==================================================
-  // NAVEGACIÓN
+  // ✅ NAVEGACIÓN (cambio mínimo: limpiar params cuando no vienen)
   // ==================================================
   const navigate = (screen, params = null) => {
     setCurrentScreen(screen);
-    setScreenParams(params);
+    setScreenParams(params ?? null); // 👈 evita params “pegados”
   };
 
   // ==================================================
@@ -169,7 +169,7 @@ function App() {
   const renderScreen = () => {
     switch (currentScreen) {
       case "home":
-        return <HomeFeed navigate={navigate} />;
+        return <HomeFeed navigate={navigate} params={screenParams} />;
       case "explore":
         return <Explore navigate={navigate} />;
       case "album":
@@ -205,7 +205,7 @@ function App() {
       case "messages":
         return <Messages navigate={navigate} params={screenParams} />;
       default:
-        return <HomeFeed navigate={navigate} />;
+        return <HomeFeed navigate={navigate} params={screenParams} />;
     }
   };
 
