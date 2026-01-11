@@ -1,22 +1,16 @@
 /* src/layout/BottomBar.css */
 
-:root{
-  /* Fallback por si JS no mide todavía */
-  --aurevi-bottom-bar-h: 78px;
-}
-
-/* Safe-area iPhone + glass bar */
+/* Barra superior tipo “segunda fila” debajo del Header */
 .aurevi-bottombar{
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  z-index: 9999;
+  position: sticky;
+  top: calc(var(--aurevi-header-h, 74px) + 10px); /* 👈 ajusta si tu header es más alto/bajo */
+  z-index: 1200;
 
   width: calc(100% - 20px);
-  max-width: 560px;
+  max-width: 980px;
+  margin: 10px auto 14px auto;
 
-  padding: 8px;
+  padding: 10px 10px;
   border-radius: 22px;
 
   background: rgba(18, 18, 22, 0.72);
@@ -25,31 +19,6 @@
 
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-
-  /* ✅ Para animación tipo YouTube */
-  transition: transform 220ms ease, opacity 180ms ease;
-  will-change: transform;
-}
-
-/* ✅ Auto-hide: baja fuera de pantalla */
-.aurevi-bottombar.is-hidden{
-  transform: translateX(-50%) translateY(calc(120% + env(safe-area-inset-bottom, 0px)));
-  opacity: 0.98;
-}
-
-/* ✅ Compact mode: menos alto para que no moleste */
-.aurevi-bottombar.is-compact{
-  padding: 6px;
-}
-.aurevi-bottombar.is-compact .aurevi-bottombar-scroll{
-  padding: 3px;
-}
-.aurevi-bottombar.is-compact .nav-item{
-  padding: 10px 10px;
-  min-width: 60px;
-}
-.aurevi-bottombar.is-compact .nav-item .label{
-  display: none;
 }
 
 /* Contenedor interno */
@@ -57,40 +26,34 @@
   position: relative;
 }
 
-/* ✅ Scroll horizontal SOLO en la barra (captura gesto) */
+/* Scroll horizontal SOLO dentro de la barra */
 .aurevi-bottombar-scroll{
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 
   overflow-x: auto;
   overflow-y: hidden;
-
   -webkit-overflow-scrolling: touch;
 
-  padding: 4px; /* espacio para burbuja */
+  padding: 6px;
   border-radius: 18px;
 
-  /* 🔥 Clave: captura gesto horizontal aquí */
   touch-action: pan-x;
   -ms-touch-action: pan-x;
 
-  /* ✅ evita que el “rebote” se propague al body */
   overscroll-behavior: contain;
 
-  /* ✅ scroll más "pro" */
   scroll-behavior: smooth;
   scroll-padding-left: 10px;
   scroll-padding-right: 10px;
 
-  /* (Opcional) snap: se siente como iOS */
   scroll-snap-type: x proximity;
 
-  scrollbar-width: none;     /* Firefox */
-  -ms-overflow-style: none;  /* IE/Edge viejo */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 
-  /* evita seleccionar texto/emoji al deslizar */
   user-select: none;
   -webkit-user-select: none;
 }
@@ -98,11 +61,11 @@
   display: none;
 }
 
-/* ✅ Burbuja animada (se desliza aunque haya scroll) */
+/* Burbuja animada */
 .active-bubble{
   position: absolute;
-  top: 4px;
-  height: calc(100% - 8px);
+  top: 6px;
+  height: calc(100% - 12px);
 
   border-radius: 18px;
 
@@ -124,16 +87,16 @@
   position: relative;
   z-index: 1;
 
-  flex: 0 0 auto;     /* ✅ necesario para scroll */
-  min-width: 72px;    /* ✅ buen tamaño táctil */
+  flex: 0 0 auto;
+  min-width: 88px;   /* en desktop se ve más “pro” */
 
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
 
-  gap: 3px;
-  padding: 10px 10px;
+  gap: 4px;
+  padding: 12px 12px;
 
   border: none;
   background: transparent;
@@ -145,15 +108,12 @@
   border-radius: 16px;
   transition: transform 120ms ease, color 180ms ease;
 
-  /* snap suave por item */
   scroll-snap-align: center;
 
   -webkit-tap-highlight-color: transparent;
 }
 
-.nav-item:active{
-  transform: scale(0.98);
-}
+.nav-item:active{ transform: scale(0.98); }
 
 .nav-item .icon{
   font-size: 18px;
@@ -166,14 +126,11 @@
   opacity: 0.85;
 }
 
-/* Activo */
-.nav-item.active{
-  color: #fff;
-}
+.nav-item.active{ color: #fff; }
 
 /* Móvil: ocultar labels */
 @media (max-width: 520px){
   .nav-item .label{ display: none; }
   .nav-item{ padding: 12px 12px; min-width: 64px; }
-  .aurevi-bottombar{ max-width: 520px; }
+  .aurevi-bottombar{ max-width: 560px; }
 }

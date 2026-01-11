@@ -235,10 +235,9 @@ function App() {
   const mustPickUsername = !usernameLoading && !!needsUsername;
 
   // ==================================================
-  // ✅ FLAGS PARA BOTTOMBAR (YouTube-like)
+  // ✅ FLAGS PARA NAV (YouTube-like)
   // ==================================================
-  const bottomBarCompact = currentScreen === "watch";
-  const bottomBarHidden = false; // luego lo conectamos a "comentarios abiertos" si quieres
+  const compact = currentScreen === "watch";
 
   return (
     <div className="aurevi-app">
@@ -250,14 +249,16 @@ function App() {
       />
 
       <Header activeWorld={activeWorld} />
-      <main className="aurevi-main">{renderScreen()}</main>
 
-     <BottomBar
-  currentScreen={currentScreen}
-  navigate={navigate}
-  compact={currentScreen === "watch"}   // ✅ compacto cuando estás viendo video
-  autoHide={true}                      // ✅ se oculta en scroll hacia abajo
-/>
+      {/* ✅ NAV ARRIBA (debajo del header) */}
+      <BottomBar
+        currentScreen={currentScreen}
+        navigate={navigate}
+        compact={compact}   // ✅ compacto cuando estás viendo video
+        autoHide={true}     // ✅ (si BottomBar lo implementa) se oculta al bajar
+      />
+
+      <main className="aurevi-main">{renderScreen()}</main>
     </div>
   );
 }

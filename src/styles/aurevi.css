@@ -414,3 +414,67 @@ body {
 .aurevi-main{
   padding-bottom: calc(var(--aurevi-bottom-bar-h) + 14px);
 }
+
+.aurevi-worlds-menu{
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.worlds-hamburger{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(18,18,22,0.55);
+  color: rgba(255,255,255,0.88);
+  padding: 10px 12px;
+  border-radius: 14px;
+
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.worlds-current{
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.worlds-dropdown{
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+
+  width: 200px;
+  padding: 8px;
+  border-radius: 16px;
+
+  background: rgba(18, 18, 22, 0.90);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+  z-index: 2000;
+}
+
+.worlds-item{
+  width: 100%;
+  text-align: left;
+  padding: 10px 10px;
+  border-radius: 12px;
+
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.82);
+  cursor: pointer;
+}
+
+.worlds-item:hover{
+  background: rgba(255,255,255,0.06);
+}
+
+.worlds-item.active{
+  color: #fff;
+  background: rgba(122, 0, 255, 0.20);
+  border: 1px solid rgba(255,255,255,0.08);
+}
