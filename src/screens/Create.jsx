@@ -1,5 +1,5 @@
 // src/screens/Create.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 import CameraRecorder from "../components/CameraRecorder.jsx";
 import { useWorld } from "../worlds/WorldContext";
@@ -35,6 +35,9 @@ function Create() {
   // Misión (opcional)
   const [personalMission, setPersonalMission] = useState(null);
 
+  // ✅ Límite recomendado (ajústalo si cambias plan/policies)
+  const MAX_MB = 45;
+
   const hasBasicInfo = title.trim().length > 0;
   const hasVideo = !!videoFile;
   const currentStep = !hasBasicInfo ? 1 : !hasVideo ? 2 : 3;
@@ -49,6 +52,32 @@ function Create() {
       terapeutico: "Terapéutico",
     };
     return map[mood] || mood;
+  };
+
+  // ✅ Helpers tamaño
+  const mbOf = (file) => (file?.size || 0) / (1024 * 1024);
+
+  const formatMB = (file) => {
+    if (!file?.size) return "0.0 MB";
+    return `${mbOf(file).toFixed(1)} MB`;
+  };
+
+  const validateSizeOrThrow = (file) => {
+    const size = mbOf(file);
+    if (size > MAX_MB) {
+      throw new Error(
+        `El video pesa ${size.toFixed(1)} MB. El máximo permitido es ${MAX_MB} MB. ` +
+          `Consejo: grábalo en 720p, recórtalo o comprímelo.`
+      );
+    }
+  };
+
+  const resetVideoState = () => {
+    setVideoFile(null);
+    setPreviewUrl("");
+    setDuetStep(1);
+    setDuetFirstFile(null);
+    setDuetGroupId(null);
   };
 
   // ✅ Preview URL
@@ -94,19 +123,43 @@ function Create() {
   }, []);
 
   const handleFileChange = (event) => {
-    const file = event.target.files?.[0] || null;
-    setVideoFile(file);
-    setStatus("");
-    setErrorMsg("");
+    try {
+      const file = event.target.files?.[0] || null;
 
-    setDuetStep(1);
-    setDuetFirstFile(null);
-    setDuetGroupId(null);
+      setStatus("");
+      setErrorMsg("");
+
+      // reset dueto
+      setDuetStep(1);
+      setDuetFirstFile(null);
+      setDuetGroupId(null);
+
+      if (!file) {
+        resetVideoState();
+        return;
+      }
+
+      // ✅ valida tamaño ANTES de seleccionar
+      validateSizeOrThrow(file);
+      setVideoFile(file);
+    } catch (e) {
+      resetVideoState();
+      setErrorMsg(e?.message || "El archivo es demasiado grande.");
+    }
   };
 
   const handleCameraVideoReady = (file) => {
     setStatus("");
     setErrorMsg("");
+
+    // ✅ valida tamaño ANTES de aceptar el video grabado
+    try {
+      validateSizeOrThrow(file);
+    } catch (e) {
+      resetVideoState();
+      setErrorMsg(e?.message || "El video grabado es demasiado grande.");
+      return;
+    }
 
     if (cameraMode === "dueto") {
       if (duetStep === 1) {
@@ -178,7 +231,11 @@ function Create() {
       const url = import.meta.env.VITE_SUPABASE_URL;
       const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
       console.log("ENV URL", url);
-      console.log("ENV ANON KEY?", !!key, key ? `(len=${String(key).length})` : "(missing)");
+      console.log(
+        "ENV ANON KEY?",
+        !!key,
+        key ? `(len=${String(key).length})` : "(missing)"
+      );
 
       const { data: sessData, error: sessErr } = await supabase.auth.getSession();
       const session = sessData?.session || null;
@@ -192,6 +249,13 @@ function Create() {
     }
   };
 
+  const fileSizeUi = useMemo(() => {
+    if (!videoFile) return null;
+    const size = mbOf(videoFile);
+    const warn = size > MAX_MB;
+    return { size, warn, label: `${size.toFixed(1)} MB` };
+  }, [videoFile]);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setStatus("");
@@ -199,6 +263,15 @@ function Create() {
 
     if (!videoFile) {
       setErrorMsg("Selecciona un archivo de video (o grábalo).");
+      return;
+    }
+
+    // ✅ seguridad extra: si por algo entró un archivo grande, lo frenamos aquí también
+    try {
+      validateSizeOrThrow(videoFile);
+      if (cameraMode === "dueto" && duetFirstFile) validateSizeOrThrow(duetFirstFile);
+    } catch (e) {
+      setErrorMsg(e?.message || "El video es demasiado grande.");
       return;
     }
 
@@ -255,7 +328,6 @@ function Create() {
         try {
           uploadRes = await supabase.storage.from(BUCKET).upload(filePath, file, {
             upsert: false,
-            // ✅ opcional: fuerza un contentType si viene vacío (a veces en móvil)
             contentType: file?.type || "video/mp4",
           });
         } catch (e) {
@@ -270,7 +342,6 @@ function Create() {
         console.log("UPLOAD RESULT", { data, error: uploadError });
 
         if (uploadError) {
-          // Aquí sí hubo respuesta pero con error de Supabase
           throw new Error("Storage bloqueó la subida: " + uploadError.message);
         }
 
@@ -337,11 +408,7 @@ function Create() {
       // Reset
       setTitle("");
       setDescription("");
-      setVideoFile(null);
-      setPreviewUrl("");
-      setDuetStep(1);
-      setDuetFirstFile(null);
-      setDuetGroupId(null);
+      resetVideoState();
     } catch (err) {
       console.error(err);
       setErrorMsg(err?.message || "Ocurrió un error inesperado al subir el video.");
@@ -525,6 +592,19 @@ function Create() {
               <span style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
                 Paso 2 · Elige el archivo.
               </span>
+
+              {/* ✅ info de tamaño */}
+              <div style={{ fontSize: 11, color: "rgba(156,163,175,0.9)", marginTop: 6 }}>
+                Límite por video: <strong>{MAX_MB} MB</strong>
+                {videoFile ? (
+                  <>
+                    {" · "}Tamaño actual:{" "}
+                    <strong style={{ color: fileSizeUi?.warn ? "#fca5a5" : "#a7f3d0" }}>
+                      {formatMB(videoFile)}
+                    </strong>
+                  </>
+                ) : null}
+              </div>
             </label>
           )}
 
@@ -576,6 +656,11 @@ function Create() {
                 </p>
               )}
 
+              {/* ✅ hint de límite */}
+              <p style={{ fontSize: 11, color: "rgba(156,163,175,0.9)", marginTop: 8, marginBottom: 0 }}>
+                Límite por video: <strong>{MAX_MB} MB</strong>.
+              </p>
+
               <CameraRecorder
                 onVideoReady={handleCameraVideoReady}
                 maxDurationSec={recordDuration}
@@ -593,20 +678,34 @@ function Create() {
                 controls
                 style={{ marginTop: 8, maxHeight: 260 }}
               />
-              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8, fontSize: 12 }}>
+              <div
+                style={{
+                  marginTop: 8,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  fontSize: 12,
+                  alignItems: "center",
+                }}
+              >
                 <button
                   type="button"
                   className="aurevi-camera-btn-secondary"
                   onClick={() => {
-                    setVideoFile(null);
-                    setDuetStep(1);
-                    setDuetFirstFile(null);
-                    setDuetGroupId(null);
+                    resetVideoState();
+                    setStatus("");
+                    setErrorMsg("");
                   }}
                 >
                   Volver a grabar / elegir otro
                 </button>
+
                 <span style={{ color: "#9ca3af" }}>Si te gusta, pulsa “Subir video”.</span>
+
+                {/* ✅ tamaño visible también aquí */}
+                <span style={{ color: fileSizeUi?.warn ? "#fca5a5" : "#a7f3d0" }}>
+                  Tamaño: <strong>{formatMB(videoFile)}</strong> (máx {MAX_MB} MB)
+                </span>
               </div>
             </div>
           )}
@@ -622,7 +721,14 @@ function Create() {
               fontSize: 12,
             }}
           >
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", color: "#9ca3af" }}>
+            <div
+              style={{
+                fontSize: 11,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                color: "#9ca3af",
+              }}
+            >
               Ficha del clip
             </div>
             <p style={{ margin: 0, color: "#e5e7eb" }}>
