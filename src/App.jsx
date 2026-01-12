@@ -1,11 +1,10 @@
 // src/App.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { useWorld } from "./worlds/WorldContext";
 
 // Layout
 import Header from "./layout/Header.jsx";
-import BottomBar from "./layout/BottomBar.jsx";
 
 // Pantallas
 import HomeFeed from "./screens/HomeFeed.jsx";
@@ -156,11 +155,11 @@ function App() {
   }, [user?.id]);
 
   // ==================================================
-  // ✅ NAVEGACIÓN (cambio mínimo: limpiar params cuando no vienen)
+  // ✅ NAVEGACIÓN (limpia params cuando no vienen)
   // ==================================================
   const navigate = (screen, params = null) => {
     setCurrentScreen(screen);
-    setScreenParams(params ?? null); // 👈 evita params “pegados”
+    setScreenParams(params ?? null);
   };
 
   // ==================================================
@@ -210,7 +209,7 @@ function App() {
   };
 
   // ==================================================
-  // ESTADOS ESPECIALES (solo authLoading aquí)
+  // ESTADOS ESPECIALES
   // ==================================================
   if (authLoading) {
     return (
@@ -234,11 +233,6 @@ function App() {
 
   const mustPickUsername = !usernameLoading && !!needsUsername;
 
-  // ==================================================
-  // ✅ FLAGS PARA NAV (YouTube-like)
-  // ==================================================
-  const compact = currentScreen === "watch";
-
   return (
     <div className="aurevi-app">
       <ChooseUsernameModal
@@ -248,14 +242,11 @@ function App() {
         }}
       />
 
-      <Header activeWorld={activeWorld} />
-
-      {/* ✅ NAV ARRIBA (debajo del header) */}
-      <BottomBar
+      {/* ✅ Header ahora incluye: barra de iconos arriba + menú ☰ (MUNDO dentro) */}
+      <Header
+        activeWorld={activeWorld}
         currentScreen={currentScreen}
         navigate={navigate}
-        compact={compact}   // ✅ compacto cuando estás viendo video
-        autoHide={true}     // ✅ (si BottomBar lo implementa) se oculta al bajar
       />
 
       <main className="aurevi-main">{renderScreen()}</main>

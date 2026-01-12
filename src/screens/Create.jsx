@@ -16,7 +16,7 @@ function Create() {
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ? Categoria (evita pantalla blanca)
+  // ✅ Categoria (evita pantalla blanca)
   const [category, setCategory] = useState("otros");
 
   // Modos
@@ -51,7 +51,7 @@ function Create() {
     return map[mood] || mood;
   };
 
-  // Preview URL
+  // ✅ Preview URL
   useEffect(() => {
     if (!videoFile) {
       setPreviewUrl("");
@@ -62,7 +62,7 @@ function Create() {
     return () => URL.revokeObjectURL(url);
   }, [videoFile]);
 
-  // Cargar misión (si existe) — no debe tumbar la pantalla si falla
+  // ✅ Cargar misión (si existe) — no debe tumbar la pantalla si falla
   useEffect(() => {
     async function loadMission() {
       try {
@@ -131,22 +131,19 @@ function Create() {
   };
 
   /**
-   * ? SUPER IMPORTANTE:
+   * ✅ SUPER IMPORTANTE:
    * - Si el profile YA existe, NO hacemos upsert (para que no falle por RLS).
    * - Solo intentamos crearlo si no existe.
    */
   const ensureProfileExists = async (user) => {
-    // 1) ¿Ya existe?
-    const { data: existing, error: selErr } = await supabase
+    const { data: existing } = await supabase
       .from("profiles")
       .select("id")
       .eq("id", user.id)
       .maybeSingle();
 
-    // Si existe, perfecto.
     if (existing?.id) return;
 
-    // Si no existe (o select falló), intentamos crearlo.
     const payload = { id: user.id, updated_at: new Date().toISOString() };
 
     const { error: upErr } = await supabase
@@ -154,13 +151,9 @@ function Create() {
       .upsert(payload, { onConflict: "id" });
 
     if (upErr) {
-      // Si el select falló por RLS, aquí también puede fallar por RLS.
-      // Pero ahora ya sabes el motivo real:
       throw new Error(
         "No se pudo crear/asegurar tu perfil en profiles. " +
           "Probable RLS bloqueando INSERT/UPSERT en profiles. " +
-          "Como ya creaste tu profile manualmente, si esto sigue apareciendo, " +
-          "revisamos policies (profiles/videos/storage). " +
           "Detalle: " +
           upErr.message
       );
@@ -176,6 +169,26 @@ function Create() {
       if (error) console.warn("analyze-video error:", error);
     } catch (e) {
       console.warn("analyze-video exception:", e);
+    }
+  };
+
+  // ✅ Debug helper (para comparar TU cuenta vs suscriptor)
+  const debugEnvAndSession = async () => {
+    try {
+      const url = import.meta.env.VITE_SUPABASE_URL;
+      const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      console.log("ENV URL", url);
+      console.log("ENV ANON KEY?", !!key, key ? `(len=${String(key).length})` : "(missing)");
+
+      const { data: sessData, error: sessErr } = await supabase.auth.getSession();
+      const session = sessData?.session || null;
+      console.log("SESSION?", !!session, session?.user?.id);
+      if (sessErr) console.log("SESSION ERROR", sessErr);
+
+      return session;
+    } catch (e) {
+      console.log("DEBUG ENV/SESSION EXCEPTION", e);
+      return null;
     }
   };
 
@@ -197,6 +210,9 @@ function Create() {
     setLoading(true);
 
     try {
+      // ✅ Logs globales del intento de subida (clave para el “Failed to fetch”)
+      await debugEnvAndSession();
+
       const { data: u, error: userError } = await supabase.auth.getUser();
       const user = u?.user;
 
@@ -206,10 +222,12 @@ function Create() {
         return;
       }
 
-      // ? Asegura profile (sin romper si ya existe)
+      // ✅ Asegura profile (sin romper si ya existe)
       await ensureProfileExists(user);
 
       const uploadAndInsert = async (file, duetStepValue = null, groupId = null) => {
+        const BUCKET = "aurevi-videos";
+
         const fileName = file?.name || "video.mp4";
         const fileExt = fileName.includes(".") ? fileName.split(".").pop() : "mp4";
 
@@ -217,21 +235,49 @@ function Create() {
           .toString(36)
           .slice(2, 8)}.${fileExt}`;
 
-        // 1) Upload storage
-        const { error: uploadError } = await supabase.storage
-          .from("aurevi-videos")
-          .upload(filePath, file);
+        // ✅ Debug del archivo
+        console.log("UPLOAD PREP", {
+          bucket: BUCKET,
+          filePath,
+          name: file?.name,
+          size: file?.size,
+          type: file?.type,
+          lastModified: file?.lastModified,
+          world: activeWorld,
+          category,
+          cameraMode,
+          duetStepValue,
+          groupId,
+        });
+
+        // 1) Upload storage (con try/catch para capturar “Failed to fetch” real)
+        let uploadRes;
+        try {
+          uploadRes = await supabase.storage.from(BUCKET).upload(filePath, file, {
+            upsert: false,
+            // ✅ opcional: fuerza un contentType si viene vacío (a veces en móvil)
+            contentType: file?.type || "video/mp4",
+          });
+        } catch (e) {
+          console.log("UPLOAD THROW (network/fetch/CORS?)", e);
+          throw new Error(
+            "Storage bloqueó la subida: Failed to fetch (red/CORS/URL/SSL). " +
+              "Revisa consola del navegador del suscriptor."
+          );
+        }
+
+        const { data, error: uploadError } = uploadRes || {};
+        console.log("UPLOAD RESULT", { data, error: uploadError });
 
         if (uploadError) {
+          // Aquí sí hubo respuesta pero con error de Supabase
           throw new Error("Storage bloqueó la subida: " + uploadError.message);
         }
 
         // 2) URL pública (temporal)
-        const { data: publicData } = supabase.storage
-          .from("aurevi-videos")
-          .getPublicUrl(filePath);
-
+        const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
         const publicUrl = publicData?.publicUrl;
+        console.log("PUBLIC URL", publicUrl);
 
         // 3) Insert DB
         const payload = {
@@ -253,11 +299,15 @@ function Create() {
             `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         }
 
+        console.log("DB INSERT payload", payload);
+
         const { data: inserted, error: dbError } = await supabase
           .from("videos")
           .insert(payload)
           .select("id")
           .single();
+
+        console.log("DB INSERT result", { inserted, dbError });
 
         if (dbError) {
           throw new Error("DB bloqueó el insert en videos: " + dbError.message);
@@ -348,7 +398,7 @@ function Create() {
                   background: "rgba(15,23,42,0.85)",
                 }}
               >
-                {isDone ? "?" : s.step}
+                {isDone ? "✓" : s.step}
               </span>
               <span
                 style={{
@@ -589,7 +639,11 @@ function Create() {
             </p>
             <p style={{ margin: "2px 0 0", color: "#e5e7eb" }}>
               <strong>Estado:</strong>{" "}
-              {!hasBasicInfo ? "Completa el título." : !hasVideo ? "Falta elegir o grabar el video." : "Listo para publicar."}
+              {!hasBasicInfo
+                ? "Completa el título."
+                : !hasVideo
+                ? "Falta elegir o grabar el video."
+                : "Listo para publicar."}
             </p>
           </div>
 

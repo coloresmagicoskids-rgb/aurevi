@@ -1,9 +1,17 @@
 /* src/layout/BottomBar.css */
 
+/* =========================================================
+   ✅ NAV SUPERIOR (segunda fila debajo del Header)
+   - sticky bajo el Header
+   - auto-hide (usa .is-hidden del BottomBar.jsx)
+   - compact mode (usa .is-compact del BottomBar.jsx)
+   - respeta safe-area arriba en móviles (iOS)
+   ========================================================= */
+
 /* Barra superior tipo “segunda fila” debajo del Header */
 .aurevi-bottombar{
   position: sticky;
-  top: calc(var(--aurevi-header-h, 74px) + 10px); /* 👈 ajusta si tu header es más alto/bajo */
+  top: calc(var(--aurevi-header-h, 74px) + 10px); /* ajusta si tu header cambia */
   z-index: 1200;
 
   width: calc(100% - 20px);
@@ -19,6 +27,30 @@
 
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+
+  /* ✅ animación para auto-hide */
+  transition: transform 220ms ease, opacity 220ms ease;
+  will-change: transform, opacity;
+}
+
+/* ✅ Si estás en iPhone con notch, opcionalmente empuja un poco hacia abajo */
+@supports (padding: env(safe-area-inset-top)) {
+  .aurevi-bottombar{
+    top: calc(var(--aurevi-header-h, 74px) + 10px + env(safe-area-inset-top, 0px));
+  }
+}
+
+/* ✅ Auto-hide: cuando haces scroll hacia abajo */
+.aurevi-bottombar.is-hidden{
+  transform: translateY(-120%);
+  opacity: 0.0;
+  pointer-events: none;
+}
+
+/* ✅ Compact: reduce altura (por ejemplo en "watch") */
+.aurevi-bottombar.is-compact{
+  padding: 7px 8px;
+  border-radius: 18px;
 }
 
 /* Contenedor interno */
@@ -128,9 +160,19 @@
 
 .nav-item.active{ color: #fff; }
 
+/* ✅ Compact también reduce botones un poco */
+.aurevi-bottombar.is-compact .nav-item{
+  padding: 10px 10px;
+  min-width: 76px;
+}
+.aurevi-bottombar.is-compact .nav-item .icon{
+  font-size: 17px;
+}
+
 /* Móvil: ocultar labels */
 @media (max-width: 520px){
   .nav-item .label{ display: none; }
   .nav-item{ padding: 12px 12px; min-width: 64px; }
   .aurevi-bottombar{ max-width: 560px; }
+  .aurevi-bottombar.is-compact .nav-item{ padding: 11px 11px; min-width: 60px; }
 }

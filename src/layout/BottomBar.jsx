@@ -3,13 +3,18 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./BottomBar.css";
 
 /**
- * ✅ YouTube-style behavior:
- * - fixed bottom
- * - reserves space via CSS variable (set on mount)
+ * ✅ Top navigation bar behavior (YouTube-like, but on TOP):
+ * - sticky under Header (CSS handles sticky position)
+ * - reserves space via CSS var --aurevi-topbar-h (so content doesn't hide behind)
  * - auto-hide on scroll down / show on scroll up
  * - compact mode reduces height
  */
-function BottomBar({ currentScreen, navigate, compact = false, autoHide = true }) {
+function BottomBar({
+  currentScreen,
+  navigate,
+  compact = false,
+  autoHide = true,
+}) {
   const items = useMemo(
     () => [
       { id: "home", icon: "🏠", label: "Inicio" },
@@ -34,23 +39,27 @@ function BottomBar({ currentScreen, navigate, compact = false, autoHide = true }
   const lastScrollY = useRef(0);
   const ticking = useRef(false);
 
-  const activeIndex = Math.max(0, items.findIndex((x) => x.id === currentScreen));
+  const activeIndex = Math.max(
+    0,
+    items.findIndex((x) => x.id === currentScreen)
+  );
 
   // ----------------------------------------------------
-  // ✅ Reserve space in layout (main padding-bottom)
+  // ✅ Reserve space in layout (TOP padding)
+  // We set: --aurevi-topbar-h
+  // Then .aurevi-main should use padding-top: var(--aurevi-topbar-h)
   // ----------------------------------------------------
-  const applyBottomBarHeightVar = () => {
+  const applyTopBarHeightVar = () => {
     const el = navRef.current;
     if (!el) return;
-    const h = el.offsetHeight || 74;
-    // Set global CSS var used by .aurevi-main padding-bottom
-    document.documentElement.style.setProperty("--aurevi-bottom-bar-h", `${h}px`);
+    const h = el.offsetHeight || 64;
+    document.documentElement.style.setProperty("--aurevi-topbar-h", `${h}px`);
   };
 
   useEffect(() => {
-    applyBottomBarHeightVar();
-    window.addEventListener("resize", applyBottomBarHeightVar);
-    return () => window.removeEventListener("resize", applyBottomBarHeightVar);
+    applyTopBarHeightVar();
+    window.addEventListener("resize", applyTopBarHeightVar);
+    return () => window.removeEventListener("resize", applyTopBarHeightVar);
   }, [compact]);
 
   // ----------------------------------------------------
@@ -59,7 +68,8 @@ function BottomBar({ currentScreen, navigate, compact = false, autoHide = true }
   const recalcBubble = () => {
     const container = scrollRef.current;
     const btn = itemRefs.current[currentScreen];
-    const fallbackBtn = activeIndex >= 0 ? itemRefs.current[items[activeIndex]?.id] : null;
+    const fallbackBtn =
+      activeIndex >= 0 ? itemRefs.current[items[activeIndex]?.id] : null;
     const targetBtn = btn || fallbackBtn;
 
     if (!container || !targetBtn) return;
@@ -69,6 +79,7 @@ function BottomBar({ currentScreen, navigate, compact = false, autoHide = true }
 
     setBubble({ left, width });
 
+    // Keep active item visible in horizontal scroll
     const cLeft = container.scrollLeft;
     const cRight = cLeft + container.clientWidth;
     const bLeft = targetBtn.offsetLeft;
@@ -117,8 +128,8 @@ function BottomBar({ currentScreen, navigate, compact = false, autoHide = true }
         if (y < 40) {
           setHidden(false);
         } else if (Math.abs(delta) > 8) {
-          if (delta > 0) setHidden(true); // down
-          else setHidden(false); // up
+          if (delta > 0) setHidden(true); // scrolling down
+          else setHidden(false); // scrolling up
         }
 
         lastScrollY.current = y;
@@ -132,6 +143,7 @@ function BottomBar({ currentScreen, navigate, compact = false, autoHide = true }
 
   const Item = ({ id, icon, label }) => {
     const active = currentScreen === id;
+
     return (
       <button
         ref={(el) => {
@@ -153,12 +165,12 @@ function BottomBar({ currentScreen, navigate, compact = false, autoHide = true }
     <nav
       ref={navRef}
       className={[
-        "aurevi-bottombar",
+        "aurevi-bottombar", // (nombre histórico; CSS lo convierte en TOPBAR)
         compact ? "is-compact" : "",
         hidden ? "is-hidden" : "",
       ].join(" ")}
       role="navigation"
-      aria-label="Barra inferior"
+      aria-label="Barra de navegación"
     >
       <div className="aurevi-bottombar-inner">
         <div className="aurevi-bottombar-scroll" ref={scrollRef}>
